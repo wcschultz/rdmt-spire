@@ -1,0 +1,76 @@
+[project]
+name = "rdmt-spire"
+description = "Roman Data Monitoring tool for monitoring calibrated, detector-level science data"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    { name = "RDMT developers"},
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "alembic",
+    "asdf >=4.1.0",
+    "asdf-astropy >=0.8.0",
+    "astropy >=6.0.0",
+    "boto3==1.40.41",
+    "crds >=11.16.21",
+    "duckdb",
+    "gwcs >=0.25.2",
+    "jsonschema >=4.8",
+    "numpy >=1.25",
+    "numpydantic==1.6.11",
+    "pandas >= 2.0.0",  # for Table.read(...) support in astropy for parquet files
+    "photutils >=2.1.0",
+    "pyarrow >= 10.0.1",  # for Table.read(...) support in astropy for parquet files
+    "pydantic==2.11.9",
+    "pymysql",
+    "roman_datamodels>=0.26.0,<0.27.0",
+    "s3fs",
+    "scipy >=1.14.1",
+    "healpy",
+    "pyyaml",
+    "sqlalchemy",
+    "stpsf",
+]
+license-files = ["LICENSE"]
+dynamic = [
+    "version",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest-cov",
+    "pytest",
+    "ruff",
+]
+
+[build-system]
+requires = [
+    "setuptools >= 77.0.3",
+    "setuptools_scm[toml] >=3.4",
+    "wheel",]
+build-backend = "setuptools.build_meta"
+
+[project.urls]
+homepage = "https://github.com/spacetelescope/rdmt-spire"
+
+[tool.setuptools.packages.find]
+include = ["rdmt_spire*"]
+
+[tool.setuptools_scm]
+version_scheme = "release-branch-semver"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N"]
+ignore = ["E501"]
+
+[tool.coverage.run]
+source = ["rdmt_spire"]
+omit = [
+    "**/__init__.py",
+    "**/tests/*",
+]

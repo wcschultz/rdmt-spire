@@ -1,0 +1,49 @@
+name: Monitor Request
+description: Propose an idea for a new monitor
+title: "[Monitor Request]: "
+labels: ["monitor-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to request a new monitor! 
+
+        The Roman Data Monitoring Tool (RDMT) Spire is an automated software system designed to track data quality metrics of Roman's Level 1 guide window data, and Level 2 science data (ramp images). The tool will also alert SOC staff to any significant changes in the data quality so they can identify potential solutions.
+        
+        The RDMT Spire is a best-effort tool. We will do our best to implement the monitors that are requested, but we cannot guarantee that all monitors will be implemented. The more details provided in the request, the easier the implementation process will be. 
+
+        Before submitting a new monitor request, please review the [monitor development document](https://github.com/spacetelescope/rdmt-spire/blob/main/MONITOR_DEVELOPMENT.md) to see if a similar monitor is already listed there.
+  
+        If you have any questions about the monitor request process, please contact us at [team-rdmt@stsci.edu](mailto:team-rdmt@stsci.edu).
+
+  - type: input
+    id: contact
+    attributes:
+      label: Point of Contact
+      description: Who should we contact for more information about the monitor? If blank, we will contact the issue submitter.
+      placeholder: ex. email@example.com
+    validations:
+      required: false
+  - type: textarea
+    id: new-monitor
+    attributes:
+      label: What is the new monitor?
+      description: What is the goal/purpose? What data is required as input? What are the proposed evaluations? The more details provided, the easier the implementation process will be.
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/spacetelescope/rdmt-spire/blob/main/CODE_OF_CONDUCT.md).
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
+  - type: checkboxes
+    id: best-effort
+    attributes:
+      label: Acknowledgement of Best Effort
+      description: The RDMT Spire is a best-effort tool. By submitting this issue, you acknowledge the developers may not have time to implement this monitor.
+      options:
+        - label: I acknowledge submitting this issue does not guarantee the implementation of this monitor.
+          required: true
