@@ -4,6 +4,10 @@ name: rdmt-spire-pipeline
 
 on: [push, pull_request]
 
+# Restrict the entire workflow to read-only access
+permissions:
+  contents: read
+
 jobs:
   build:
 

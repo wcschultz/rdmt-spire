@@ -84,15 +84,15 @@ This file tracks the development status and prioritization of monitors across th
   - Not yet made
 - **Priority Level:** P1 - High priority
 - **Estimated Work:** L (involves coordinating with L4 detector files and binning sources by brightness)
-- **Description:** Using the L4 detector catalog files, this monitor would bin the sources by brightness (taking a maximum number of sources per bin to keep the runtime manageable) and then calculate flux ratios and estimate the SNR for sources in each bin.
+- **Description:** Using the L4 detector catalog files, this monitor will bin the sources by brightness  and then calculate average value of quantities like flux ratios, radius for 50% encircled energy and so on.
 
 <a id="monitor-photometry"></a>
 #### Photometry Monitor
 - **Related Issues:**
   - Not yet made
 - **Priority Level:** P1 - High priority
-- **Estimated Work:** L (involves coordinating with L4 detector files and binning sources by brightness)
-- **Description:** This monitor will be combined with the astrometry monitor to used the best-fit PSFs to estimate the typical encircled energy at several pixel radii, 2-axis FWHM, and SNR for sources in the same bins as the source catalog monitor.
+- **Estimated Work:** M (involves expanding on the astrometry monitor to include PSF quantification)
+- **Description:** This monitor will be combined with the astrometry monitor to use the best-fit PSFs to estimate the typical encircled energy at several pixel radii, 2-axis FWHM, and so on for sources in the same bins as the source catalog monitor. The monitor will focus on quantities not captured in the source catalog monitor.
 
 <a id="monitor-flat-field-flux"></a>
 #### Flat Field Flux Monitor
