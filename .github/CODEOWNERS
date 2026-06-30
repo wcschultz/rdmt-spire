@@ -1,0 +1,23 @@
+# automatically requests pull request reviews for files matching the given pattern; the last match takes precedence
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# pull requests are required to have at least 1 approval from one of the codeowners, as defined in the ruleset at https://github.com/spacetelescope/rdmt-spire/settings/rules/18182414
+# files defined without any usernames or teams will have NO codeowner
+
+# any files not matched below default to the maintainers team
+* 								            @spacetelescope/rdmt-maintainers
+
+# workflows and automation
+/.github/						            @wcschultz
+
+# alembic
+*alembic*						            @spacetelescope/rdmt-maintainers @wcschultz
+
+# application code
+/rdmt_spire/lambda/				            @spacetelescope/rdmt-maintainers @wcschultz
+
+# monitors
+/rdmt_spire/monitors/astrometry/			@spacetelescope/rdmt-maintainers @sanjibs
+/rdmt_spire/monitors/noise_1f/			    @spacetelescope/rdmt-maintainers @srosagomez
+/rdmt_spire/monitors/guide_window/			@spacetelescope/rdmt-maintainers @wcschultz
+
