@@ -81,7 +81,7 @@ This file tracks the development status and prioritization of monitors across th
 <a id="monitor-source-catalog"></a>
 #### Source Catalog Monitor
 - **Related Issues:**
-  - Not yet made
+  - [ISSUE 4](https://github.com/spacetelescope/rdmt-spire/issues/4)
 - **Priority Level:** P1 - High priority
 - **Estimated Work:** L (involves coordinating with L4 detector files and binning sources by brightness)
 - **Description:** Using the L4 detector catalog files, this monitor will bin the sources by brightness  and then calculate average value of quantities like flux ratios, radius for 50% encircled energy and so on.
@@ -89,7 +89,7 @@ This file tracks the development status and prioritization of monitors across th
 <a id="monitor-photometry"></a>
 #### Photometry Monitor
 - **Related Issues:**
-  - Not yet made
+  - [ISSUE 5](https://github.com/spacetelescope/rdmt-spire/issues/5)
 - **Priority Level:** P1 - High priority
 - **Estimated Work:** M (involves expanding on the astrometry monitor to include PSF quantification)
 - **Description:** This monitor will be combined with the astrometry monitor to use the best-fit PSFs to estimate the typical encircled energy at several pixel radii, 2-axis FWHM, and so on for sources in the same bins as the source catalog monitor. The monitor will focus on quantities not captured in the source catalog monitor.
@@ -97,7 +97,7 @@ This file tracks the development status and prioritization of monitors across th
 <a id="monitor-flat-field-flux"></a>
 #### Flat Field Flux Monitor
 - **Related Issues:**
-  - Not yet made
+  - [ISSUE 6](https://github.com/spacetelescope/rdmt-spire/issues/6)
 - **Priority Level:** P2 - Medium priority
 - **Estimated Work:** S 
 - **Description:** WFI Flat L2s will have the RCS illumination level in the metadata. This monitor will compare the illumination values to the brightness seen in the images.
@@ -105,7 +105,7 @@ This file tracks the development status and prioritization of monitors across th
 <a id="monitor-jump"></a>
 #### Jump Monitor
 - **Related Issues:**
-  - Not yet made
+  - [ISSUE 7](https://github.com/spacetelescope/rdmt-spire/issues/7)
 - **Priority Level:** P2 - Medium priority
 - **Estimated Work:** M (adding clustering analysis to identify snowballs and other extended sources adds work)
 - **Description:** Using the DQ array (and the resultant DQ array if available) from the L2 file to count the number of jumps. Ideally this would include a clustering analysis to distinguish CR events from snowballs and other extended sources (e.g. moving objects).
@@ -113,7 +113,7 @@ This file tracks the development status and prioritization of monitors across th
 <a id="monitor-pixel-monitor"></a>
 #### Pixel Monitor
 - **Related Issues:**
-  - Not yet made
+  - [ISSUE 8](https://github.com/spacetelescope/rdmt-spire/issues/8)
 - **Priority Level:** P2 - Medium priority
 - **Estimated Work:** S
 - **Description:** This is a large catch-all monitor for any types of pixel statistics that would be helpful to trend. This currently includes, but is not limited to the number of saturated pixels, min/mean/max/std/percentiles of the pixel values, pixel scale at the corners and center of the detector, mean/median and std of chi^2 fitting values, and includes these values over the entire detector as well as some regions (e.g. 4 corners and a central region).
@@ -121,7 +121,7 @@ This file tracks the development status and prioritization of monitors across th
 <a id="monitor-persistence"></a>
 #### Persistence Monitor
 - **Related Issues:**
-  - Not yet made
+  - [ISSUE 9](https://github.com/spacetelescope/rdmt-spire/issues/9)
 - **Priority Level:** P3 - Low priority
 - **Estimated Work:** XL (scope still unclear and involves new infrastructure)
 - **Description:** We want to track persistence in the L2 files, but the exact implementation of this is still unclear. We will need to wait for commissioning to clarify which model we should use and how helpful the different possible products will be to users.
