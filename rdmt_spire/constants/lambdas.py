@@ -1,7 +1,9 @@
+import os
 from enum import StrEnum
 
 # AWS Parameter store path and parameter names
-AWS_PARAMETER_PATH = "/rdmt/config/"
+prefix = os.getenv("PROFILE_NAME_PREFIX", "rdmt")
+AWS_PARAMETER_PATH = f"/{prefix}/config/"
 
 # SQS queue parameter names
 NOISE_1F_MONITOR_QUEUE = "noise_1f_monitor_queue"
