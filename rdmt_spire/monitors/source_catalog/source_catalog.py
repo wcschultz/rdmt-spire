@@ -1,10 +1,13 @@
-from rdmt_spire.utilities import aws_utils
-import os
 import logging
+import os
+
 import asdf
 import numpy as np
 import pandas as pd
 from astropy.table import Table
+
+from rdmt_spire.utilities import aws_utils
+
 from ..monitor_base import BaseMonitor
 
 logger = logging.getLogger(__name__)
@@ -62,8 +65,6 @@ class SourceCatalogMonitor(BaseMonitor):
             "flux_ratio_aper04_aper08",
             "flux_err_ratio_psf_theory"
         ]
-        bins = ["bright", "faint"]
-        stats = ["median", "rms", "nmad"]
 
         # Do we need a  Fallback logic for tests to return dummy values
         # if self.asdf_file.uri is None:
@@ -102,7 +103,7 @@ class SourceCatalogMonitor(BaseMonitor):
         expected_row = expected_props[expected_props['filter'] == optical_filter]
         if expected_row.empty:
             raise RuntimeError(f"SourceCatalogMonitor: filter '{optical_filter}' not found in expected properties table")
-        E_p = {key:expected_row[key].values[0] for key in properties}
+        expected_properties = {key:expected_row[key].values[0] for key in properties}
 
         # 4. Construct parquet catalog file path and load it
         file_object=aws_utils.load_file_object(self.datadir, filename.replace('_cal.asdf', '_cat.parquet'))
@@ -111,7 +112,7 @@ class SourceCatalogMonitor(BaseMonitor):
         # 5. Point source selection
         if 'is_extended' not in df.columns:
             raise RuntimeError("SourceCatalogMonitor: 'is_extended' column missing from source catalog")
-        df_pts = df[df['is_extended'] == False].copy()
+        df_pts = df[~df['is_extended']].copy()
 
         # 6. Calculate magnitude bin boundaries
         # Saturation mag: m_sat = Zp - 2.5 * log10(alpha_sat)
@@ -176,7 +177,7 @@ class SourceCatalogMonitor(BaseMonitor):
 
         # 9. Calculate and append median, RMS, and NMAD metrics
         for prop in properties:
-            exp_val = E_p[prop]
+            exp_val = expected_properties[prop]
             for bin_name, cond in [("bright", cond_bright), ("faint", cond_faint)]:
                 vals = df_props[prop][cond]
                 vals=vals[np.isfinite(vals)]

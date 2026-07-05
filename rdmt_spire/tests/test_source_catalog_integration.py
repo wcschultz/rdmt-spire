@@ -1,15 +1,15 @@
 import os
+
 import asdf
-import numpy as np
 import pandas as pd
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from ..constants.codes import StatusCodes
-from ..db_tables.base import Base
 from ..db_tables.sci_tables import L2ScienceResultsTable
 from ..manager import MonitorManager
+
 
 def test_source_catalog_integration(tmp_path):
     """
@@ -68,9 +68,9 @@ def test_source_catalog_integration(tmp_path):
 
     # 6. Initialize in-memory SQLite database session
     engine = create_engine("sqlite:///:memory:")
-    SessionLocal = sessionmaker(bind=engine)
+    session_local = sessionmaker(bind=engine)
     L2ScienceResultsTable.__table__.create(bind=engine)
-    session = SessionLocal()
+    session = session_local()
 
     try:
         # 7. Archive the results

@@ -9,12 +9,12 @@ from ..constants.codes import StatusCodes
 from ..constants.dmd import FileTypes
 from ..constants.lambdas import (
     ASTROMETRY_MONITOR_DATA_BUCKET,
-    SOURCE_CATALOG_MONITOR_DATA_BUCKET,
     AWS_DBS,
     AWS_PARAMETER_PATH,
     AWS_S3_BUCKETS,
     DB_NAME,
     DB_SECRET_NAME,
+    SOURCE_CATALOG_MONITOR_DATA_BUCKET,
     MessageKeys,
 )
 from ..db_tables.gw_tables import L1GuideWindowMetaTable, L1GuideWindowResultsTable
