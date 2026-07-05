@@ -10,12 +10,14 @@ NOISE_1F_MONITOR_QUEUE = "noise_1f_monitor_queue"
 ASTROMETRY_MONITOR_QUEUE = "astrometry_monitor_queue"
 ESSENTIAL_L2_MONITOR_QUEUE = "essential_l2_monitor_queue"
 GUIDE_WINDOW_MONITOR_QUEUE = "guide_window_monitor_queue"
+SOURCE_CATALOG_MONITOR_QUEUE = "source_catalog_monitor_queue"
 
 AWS_MONITOR_QUEUES = [
     NOISE_1F_MONITOR_QUEUE,
     ASTROMETRY_MONITOR_QUEUE,
     ESSENTIAL_L2_MONITOR_QUEUE,
     GUIDE_WINDOW_MONITOR_QUEUE
+    SOURCE_CATALOG_MONITOR_QUEUE,
 ]
 
 # SNS topic parameter names
@@ -31,11 +33,13 @@ AWS_SNS_TOPICS = [
 PARQUET_FILE_BUCKET = "parquet_file_bucket"
 ALEMBIC_VERSIONS_BUCKET = "alembic_versions_bucket"
 ASTROMETRY_MONITOR_DATA_BUCKET = "astrometry_monitor_data_bucket"
+SOURCE_CATALOG_MONITOR_DATA_BUCKET = "source_catalog_monitor_data_bucket"
 
 AWS_S3_BUCKETS = [
     PARQUET_FILE_BUCKET,
     ALEMBIC_VERSIONS_BUCKET,
     ASTROMETRY_MONITOR_DATA_BUCKET,
+    SOURCE_CATALOG_MONITOR_DATA_BUCKET,
 ]
 
 # Database parameter names

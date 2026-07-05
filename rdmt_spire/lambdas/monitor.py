@@ -9,6 +9,7 @@ from ..constants.codes import StatusCodes
 from ..constants.dmd import FileTypes
 from ..constants.lambdas import (
     ASTROMETRY_MONITOR_DATA_BUCKET,
+    SOURCE_CATALOG_MONITOR_DATA_BUCKET,
     AWS_DBS,
     AWS_PARAMETER_PATH,
     AWS_S3_BUCKETS,
@@ -147,6 +148,10 @@ def generate_monitor_config(message_dict, params):
     if message_dict[MessageKeys.MONITOR_NAME] == "astrometry":
         monitor_config["astrometry"] = {
             "datadir": params[ASTROMETRY_MONITOR_DATA_BUCKET]
+        }
+    elif message_dict[MessageKeys.MONITOR_NAME] == "source_catalog":
+        monitor_config["source_catalog"] = {
+            "datadir": params[SOURCE_CATALOG_MONITOR_DATA_BUCKET]
         }
     
     return monitor_config
