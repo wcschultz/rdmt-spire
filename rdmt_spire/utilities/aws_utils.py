@@ -248,9 +248,18 @@ def load_file_object(bucket_name: str, key_name: str, mode: str = "rb"):
     the contents of the file as a series of bytes
 
     """
-    try:
+    # Using try clause to detect if a file is from s3 or local file system seems 
+    # more complicated than it needs to be, a simple check of the bucket_name string should suffice
+    # On local file the tests were failing because there were other exceptions than ClientError
+    # so ClientError should be replaced with general Exception
+    if bucket_name.startswith("s3://"):
         content = load_s3_object(bucket_name, key_name)
-    except ClientError:
+        # try:
+        #     content = load_s3_object(bucket_name, key_name)
+        # except Exception as e:
+        #     print(f"Error loading file from S3: {e}")
+        #     raise e
+    else:
         local_path = os.path.join(bucket_name, key_name)
         if os.path.exists(local_path):
             with open(local_path, mode=mode) as fp:
