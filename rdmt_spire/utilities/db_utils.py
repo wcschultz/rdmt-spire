@@ -247,7 +247,15 @@ def download_migration_scripts_from_s3(s3_bucket, alembic_file_local_path, s3_cl
             s3_client.download_file(s3_bucket, key, local_file_path)
             logger.info(f"Downloaded: {key} to {local_file_path}")
 
-def run_alembic_upgrade(alembic_ini_path: str, script_location: str, revision_str: str, allow_update=False, save_revision=False) -> None:
+def run_alembic_upgrade(
+    alembic_ini_path: str,
+    script_location: str,
+    revision_str: str,
+    allow_update=False,
+    save_revision=False,
+    app_logger=None,
+    skip_alembic_file_config=True,
+) -> None:
     """
     Runs the 'alembic upgrade revision_str' command programmatically.
 
@@ -273,6 +281,9 @@ def run_alembic_upgrade(alembic_ini_path: str, script_location: str, revision_st
     # Create an Alembic Config object
     logger.info("Setting up alembic config")
     alembic_cfg = Config(alembic_ini_path)
+    if app_logger is not None:
+        alembic_cfg.attributes["app_logger"] = app_logger
+    alembic_cfg.attributes["skip_alembic_file_config"] = skip_alembic_file_config
 
     # Set the script_location if provided, otherwise it will use the one in alembic.ini
     alembic_cfg.set_main_option("script_location", script_location)
@@ -325,7 +336,14 @@ def run_alembic_upgrade(alembic_ini_path: str, script_location: str, revision_st
     else:
         return db_update_needed, None
 
-def run_alembic_downgrade(alembic_ini_path: str, script_location: str, revision_str: str, allow_update=False) -> None:
+def run_alembic_downgrade(
+    alembic_ini_path: str,
+    script_location: str,
+    revision_str: str,
+    allow_update=False,
+    app_logger=None,
+    skip_alembic_file_config=True,
+) -> None:
     """
     Runs the 'alembic downgrade revision_str' command programmatically.
 
@@ -349,6 +367,9 @@ def run_alembic_downgrade(alembic_ini_path: str, script_location: str, revision_
     # Create an Alembic Config object
     logger.info("Setting up alembic config")
     alembic_cfg = Config(alembic_ini_path)
+    if app_logger is not None:
+        alembic_cfg.attributes["app_logger"] = app_logger
+    alembic_cfg.attributes["skip_alembic_file_config"] = skip_alembic_file_config
 
     # Set the script_location if provided, otherwise it will use the one in alembic.ini
     alembic_cfg.set_main_option("script_location", script_location)

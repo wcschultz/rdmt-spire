@@ -1,3 +1,4 @@
+import logging
 from logging.config import fileConfig
 
 from alembic import context
@@ -18,10 +19,15 @@ from rdmt_spire.utilities.db_utils import get_connection_url
 # access to values within the .ini file in use.
 config = context.config
 params = fetch_parameters_from_path(AWS_PARAMETER_PATH, expected_parameters=AWS_DBS)
+app_logger = config.attributes.get("app_logger")
+if app_logger is None:
+    app_logger = logging.getLogger("alembic.env")
 
 # Interpret the config file for Python logging.
 # This sets up loggers accordingly.
-if config.config_file_name is not None:
+if config.attributes.get("skip_alembic_file_config", False):
+    app_logger.info("Skipping fileConfig in alembic env.py; using provided logger configuration.")
+elif config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # add your model's MetaData object here
@@ -38,6 +44,7 @@ def run_migrations_offline() -> None:
     By skipping the creation of an Engine, we don't even need a
     database to be available.
     """
+    app_logger.info("Running Alembic migrations in offline mode.")
     url = get_connection_url(db_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])
     context.configure(
         url=url,
@@ -55,6 +62,7 @@ def run_migrations_online() -> None:
     In this scenario, we need to create an Engine
     and associate a connection with the context.
     """
+    app_logger.info("Running Alembic migrations in online mode.")
     url = get_connection_url(db_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])
     connectable = create_engine(url, poolclass=NullPool)
     with connectable.connect() as connection:
