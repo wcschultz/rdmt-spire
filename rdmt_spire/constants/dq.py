@@ -1,0 +1,5 @@
+# file to contain all data quality flag related constants
+
+SATURATED_STR = "SATURATED"
+SOMETIMES_SATURATED_STR = "SOMETIMES_SATURATED"
+NOT_SATURATED_STR = "NOT_SATURATED"

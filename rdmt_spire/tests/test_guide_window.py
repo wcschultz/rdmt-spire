@@ -76,11 +76,13 @@ def _build_monitor(
 def test_process_centroids_returns_expected_shapes():
     monitor = _build_monitor(num_frames=300)
 
-    mean_centroid_positions, rms_centroid_error = monitor._process_centroids()
+    mean_centroid_positions, rms_x_centroid_error, rms_y_centroid_error = monitor._process_centroids()
 
     assert mean_centroid_positions.shape == (2,)
-    assert np.isfinite(rms_centroid_error)
-    assert rms_centroid_error >= 0
+    assert np.isfinite(rms_x_centroid_error)
+    assert rms_x_centroid_error >= 0
+    assert np.isfinite(rms_y_centroid_error)
+    assert rms_y_centroid_error >= 0
 
 
 def test_annulus_mask_vs_count_rate_mask():
@@ -110,16 +112,16 @@ def test_annulus_mask_vs_count_rate_mask():
 @pytest.mark.parametrize(
     "signal,saturation_threshold,expected",
     [
-        (np.full((10, 4, 4), 70000.0), 65535, "saturated"),
+        (np.full((10, 4, 4), 70000.0), 65535, "SATURATED"),
         (
             np.concatenate(
                 [np.full((2, 4, 4), 70000.0), np.full((8, 4, 4), 100.0)],
                 axis=0,
             ),
             65535,
-            "sometimes_saturated",
+            "SOMETIMES_SATURATED",
         ),
-        (np.full((10, 4, 4), 100.0), 65535, "not_saturated"),
+        (np.full((10, 4, 4), 100.0), 65535, "NOT_SATURATED"),
     ],
 )
 def test_check_saturation_states(signal, saturation_threshold, expected):
@@ -200,7 +202,8 @@ def test_run_populates_expected_datacards_and_evaluations():
         "mean_count_rate",
         "std_count_rate",
         "num_count_rate_outliers",
-        "rms_centroid_error",
+        "rms_x_centroid_error",
+        "rms_y_centroid_error",
         "rms_centroid_offset",
     }
 

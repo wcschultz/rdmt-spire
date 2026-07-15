@@ -25,15 +25,26 @@ FGS_LIMIT_MATCHING_FACTOR = 3 # number of standard deviations to compare with th
 NUM_COUNT_RATE_OUTLIERS_THRESHOLD = 0
 RMS_CENTROID_OFFSET_THRESHOLD = 2 # pixels (~220 mas)
 
-WIM_RMS_JITTER_THRESHOLD = 0.1 # pixels (~11 mas)
-PRISM_RMS_JITTER_THRESHOLD = 0.4 # pixels (~44 mas)
-GRISM_RMS_JITTER_THRESHOLD = 0.9 # pixels (~99 mas)
-DEF_RMS_JITTER_THRESHOLD = 0.5 # pixels (~55 mas)
+# Specify the RMS jitter requirements for each mode. 
+# These are used to determine if the jitter is within acceptable limits for each mode.
+WIM_RMS_JITTER_REQUIREMENT = 0.1 # pixels (~11 mas)
+PRISM_RMS_JITTER_REQUIREMENT = 0.4 # pixels (~44 mas)
+GRISM_RMS_JITTER_REQUIREMENT = 0.9 # pixels (~99 mas)
+DEF_RMS_JITTER_REQUIREMENT = 0.5 # pixels (~55 mas)
 
-RMS_JITTER_THRESHOLDS = {
-    "WIM": WIM_RMS_JITTER_THRESHOLD,
-    "PRISM": PRISM_RMS_JITTER_THRESHOLD,
-    "GRISM": GRISM_RMS_JITTER_THRESHOLD,
-    "DEFOCUS": DEF_RMS_JITTER_THRESHOLD,
+# TODO: Update the RMS jitter thresholds once we have on-sky performance from commissioning.
+# The current values are based on pre-launch requirements.
+RMS_X_JITTER_THRESHOLDS = {
+    "WIM": WIM_RMS_JITTER_REQUIREMENT,
+    "PRISM": PRISM_RMS_JITTER_REQUIREMENT,
+    "GRISM": GRISM_RMS_JITTER_REQUIREMENT,
+    "DEFOCUS": DEF_RMS_JITTER_REQUIREMENT,
+}
+
+RMS_Y_JITTER_THRESHOLDS = {
+    "WIM": WIM_RMS_JITTER_REQUIREMENT,
+    "PRISM": PRISM_RMS_JITTER_REQUIREMENT,
+    "GRISM": GRISM_RMS_JITTER_REQUIREMENT,
+    "DEFOCUS": DEF_RMS_JITTER_REQUIREMENT,
 }
 

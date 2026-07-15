@@ -15,7 +15,7 @@ from ..constants.database import (
     VISIT_ID_LENGTH,
 )
 from ..constants.dmd import FileTypes
-from .base import Base
+from .base import Base, ResultsBase
 
 
 class L2ScienceMetaTable(Base):
@@ -91,7 +91,7 @@ class L2ScienceMetaTable(Base):
         return FileTypes.L2_SCIENCE
     
 
-class L2ScienceResultsTable(Base):
+class L2ScienceResultsTable(ResultsBase):
     """Class containing schema for the L2 Science data monitoring results table."""
 
     __tablename__ = "l2_science_results"
@@ -114,21 +114,13 @@ class L2ScienceResultsTable(Base):
         return [
             "filename",
             "reprocess_number",
-            "astro_offset",
-            "astro_offset_eval",
+            "astrometric_offset",
+            "astrometric_offset_eval",
             "num_astrometric_sources",
             "num_astrometric_sources_eval",
-            "noise1f_power_ratio",
-            "noise1f_power_ratio_eval",
+            "noise_1f_power_ratio",
+            "noise_1f_power_ratio_eval",
         ]
-    
-    def get_metric_eval_pairs(self):
-        eval_column_names = [column.name for column in self.__table__.columns if "_eval" in column.name]
-        metric_column_names = [eval_name.removesuffix('_eval') for eval_name in eval_column_names]
-
-        return list(zip(metric_column_names, eval_column_names))
-
-
 
     @property
     def file_type(self):
