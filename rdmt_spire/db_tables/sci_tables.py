@@ -108,6 +108,57 @@ class L2ScienceResultsTable(ResultsBase):
     noise_1f_power_ratio:       Mapped[Optional[float]] = mapped_column(Float())
     noise_1f_power_ratio_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
 
+    # Pixel statistics monitor results
+    plate_scale_center_x:        Mapped[Optional[float]] = mapped_column(Float())
+    plate_scale_center_x_eval:   Mapped[Optional[bool]]  = mapped_column(Boolean())
+    plate_scale_center_y:        Mapped[Optional[float]] = mapped_column(Float())
+    plate_scale_center_y_eval:   Mapped[Optional[bool]]  = mapped_column(Boolean())
+
+    delta_plate_scale_center:      Mapped[Optional[float]] = mapped_column(Float())
+    delta_plate_scale_center_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    delta_plate_scale_corner_bl:      Mapped[Optional[float]] = mapped_column(Float())
+    delta_plate_scale_corner_bl_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    delta_plate_scale_corner_br:      Mapped[Optional[float]] = mapped_column(Float())
+    delta_plate_scale_corner_br_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    delta_plate_scale_corner_tl:      Mapped[Optional[float]] = mapped_column(Float())
+    delta_plate_scale_corner_tl_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    delta_plate_scale_corner_tr:      Mapped[Optional[float]] = mapped_column(Float())
+    delta_plate_scale_corner_tr_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+
+    plate_scale_corner_bl_x:      Mapped[Optional[float]] = mapped_column(Float())
+    plate_scale_corner_bl_x_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    plate_scale_corner_bl_y:      Mapped[Optional[float]] = mapped_column(Float())
+    plate_scale_corner_bl_y_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    plate_scale_corner_br_x:      Mapped[Optional[float]] = mapped_column(Float())
+    plate_scale_corner_br_x_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    plate_scale_corner_br_y:      Mapped[Optional[float]] = mapped_column(Float())
+    plate_scale_corner_br_y_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    plate_scale_corner_tl_x:      Mapped[Optional[float]] = mapped_column(Float())
+    plate_scale_corner_tl_x_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    plate_scale_corner_tl_y:      Mapped[Optional[float]] = mapped_column(Float())
+    plate_scale_corner_tl_y_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    plate_scale_corner_tr_x:      Mapped[Optional[float]] = mapped_column(Float())
+    plate_scale_corner_tr_x_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    plate_scale_corner_tr_y:      Mapped[Optional[float]] = mapped_column(Float())
+    plate_scale_corner_tr_y_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+
+    n_saturated_pix:      Mapped[Optional[int]]   = mapped_column(Integer())
+    n_saturated_pix_eval:  Mapped[Optional[bool]]  = mapped_column(Boolean())
+    min_ramp_value:        Mapped[Optional[float]] = mapped_column(Float())
+    min_ramp_value_eval:   Mapped[Optional[bool]]  = mapped_column(Boolean())
+    max_ramp_value:        Mapped[Optional[float]] = mapped_column(Float())
+    max_ramp_value_eval:   Mapped[Optional[bool]]  = mapped_column(Boolean())
+    mean_ramp_value:       Mapped[Optional[float]] = mapped_column(Float())
+    mean_ramp_value_eval:  Mapped[Optional[bool]]  = mapped_column(Boolean())
+    median_ramp_value:      Mapped[Optional[float]] = mapped_column(Float())
+    median_ramp_value_eval: Mapped[Optional[bool]]  = mapped_column(Boolean())
+    std_ramp_value:        Mapped[Optional[float]] = mapped_column(Float())
+    std_ramp_value_eval:   Mapped[Optional[bool]]  = mapped_column(Boolean())
+    p95_ramp_value:        Mapped[Optional[float]] = mapped_column(Float())
+    p95_ramp_value_eval:   Mapped[Optional[bool]]  = mapped_column(Boolean())
+    p05_ramp_value:        Mapped[Optional[float]] = mapped_column(Float())
+    p05_ramp_value_eval:   Mapped[Optional[bool]]  = mapped_column(Boolean())
+
     def _get_verification_columns(self):
         return [
             "filename",
@@ -118,6 +169,52 @@ class L2ScienceResultsTable(ResultsBase):
             "num_astrometric_sources_eval",
             "noise_1f_power_ratio",
             "noise_1f_power_ratio_eval",
+            "plate_scale_center_x",
+            "plate_scale_center_x_eval",
+            "plate_scale_center_y",
+            "plate_scale_center_y_eval",
+            "delta_plate_scale_center",
+            "delta_plate_scale_center_eval",
+            "delta_plate_scale_corner_bl",
+            "delta_plate_scale_corner_bl_eval",
+            "delta_plate_scale_corner_br",
+            "delta_plate_scale_corner_br_eval",
+            "delta_plate_scale_corner_tl",
+            "delta_plate_scale_corner_tl_eval",
+            "delta_plate_scale_corner_tr",
+            "delta_plate_scale_corner_tr_eval",
+            "plate_scale_corner_bl_x",
+            "plate_scale_corner_bl_x_eval",
+            "plate_scale_corner_bl_y",
+            "plate_scale_corner_bl_y_eval",
+            "plate_scale_corner_br_x",
+            "plate_scale_corner_br_x_eval",
+            "plate_scale_corner_br_y",
+            "plate_scale_corner_br_y_eval",
+            "plate_scale_corner_tl_x",
+            "plate_scale_corner_tl_x_eval",
+            "plate_scale_corner_tl_y",
+            "plate_scale_corner_tl_y_eval",
+            "plate_scale_corner_tr_x",
+            "plate_scale_corner_tr_x_eval",
+            "plate_scale_corner_tr_y",
+            "plate_scale_corner_tr_y_eval",
+            "n_saturated_pix",
+            "n_saturated_pix_eval",
+            "min_ramp_value",
+            "min_ramp_value_eval",
+            "max_ramp_value",
+            "max_ramp_value_eval",
+            "mean_ramp_value",
+            "mean_ramp_value_eval",
+            "median_ramp_value",
+            "median_ramp_value_eval",
+            "std_ramp_value",
+            "std_ramp_value_eval",
+            "p95_ramp_value",
+            "p95_ramp_value_eval",
+            "p05_ramp_value",
+            "p05_ramp_value_eval",
         ]
 
     # Used for mapping the table classes to the file types they relate to
