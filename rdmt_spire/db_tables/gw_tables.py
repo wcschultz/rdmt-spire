@@ -28,6 +28,7 @@ class L1GuideWindowMetaTable(Base):
     program_number:         Mapped[int] = mapped_column(Integer()) # from filename
     visit_id:               Mapped[str] = mapped_column(String(VISIT_ID_LENGTH)) # from filename
     gw_acquisition_number:  Mapped[int] = mapped_column(Integer()) # from filename
+    acquisition_id:         Mapped[str] = mapped_column(String(VISIT_ID_LENGTH+2)) # from filename    
     detector:               Mapped[str] = mapped_column(String(DETECTOR_LENGTH)) # from filename
     optical_element:        Mapped[str] = mapped_column(String(OPTICAL_ELEMENT_LENGTH)) # from filename
     archive_bucket:         Mapped[str] = mapped_column(String(ARCHIVE_LENGTH)) # from body['archiveBucket']
@@ -36,6 +37,7 @@ class L1GuideWindowMetaTable(Base):
     dmd_notify_datetime:    Mapped[datetime] = mapped_column(DateTime()) # from outer message structure
 
     # Information that requires opening the file to extract
+    acq_start_datetime:     Mapped[Optional[datetime]] = mapped_column(DateTime()) # from meta.start_time
     sdf_version:            Mapped[Optional[str]] = mapped_column(String(SOFTWARE_VERSION_LENGTH)) # from meta.sdf_software_version
 
     # Information populated by RDMT
@@ -44,7 +46,7 @@ class L1GuideWindowMetaTable(Base):
     # -1 indicates the monitor should not be run
     # 0 indicates the monitor still needs to be run
     # 1 indicates the monitor ran successfully
-    monitor_status:         Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
+    guide_window_status:         Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
 
     def _get_verification_columns(self):
         return [
@@ -52,6 +54,8 @@ class L1GuideWindowMetaTable(Base):
             "reprocess_number",
             "program_number",
             "gw_acquisition_number",
+            "acquisition_id",
+            "acq_start_datetime",
             "visit_id",
             "detector",
             "optical_element",
@@ -61,13 +65,11 @@ class L1GuideWindowMetaTable(Base):
             "dmd_notify_datetime",
             "sdf_version",
             "monitor_end_datetime",
-            "monitor_status",
+            "guide_window_status",
         ]
     
-    @property
-    def file_type(self):
-        # Used for mapping the table classes to the file types they relate to
-        return FileTypes.L1_GUIDE_WINDOW
+    # Used for mapping the table classes to the file types they relate to
+    file_type = FileTypes.L1_GUIDE_WINDOW
 
 
 class L1GuideWindowResultsTable(ResultsBase):
@@ -147,7 +149,5 @@ class L1GuideWindowResultsTable(ResultsBase):
             "rms_centroid_offset_eval",
         ]
 
-    @property
-    def file_type(self):
-        # Used for mapping the table classes to the file types they relate to
-        return FileTypes.L1_GUIDE_WINDOW
+    # Used for mapping the table classes to the file types they relate to
+    file_type = FileTypes.L1_GUIDE_WINDOW

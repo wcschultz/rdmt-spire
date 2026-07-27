@@ -14,9 +14,11 @@ from ..constants.lambdas import (
     AWS_PARAMETER_PATH,
     DB_NAME,
     DB_SECRET_NAME,
+    GUIDE_WINDOW_MONITOR_QUEUE,
     NOISE_1F_MONITOR_QUEUE,
     MessageKeys,
 )
+from ..db_tables.gw_tables import L1GuideWindowMetaTable
 from ..db_tables.sci_tables import L2ScienceMetaTable
 from ..utilities.aws_utils import fetch_parameters_from_path, get_sqs_url
 from ..utilities.db_utils import connect_to_db
@@ -103,26 +105,43 @@ def ingest_single(message_dict, notification_datetime, aws_account_id):
 
     message_dict[MessageKeys.FUNCTION_TYPE] = 'monitor'
     message_dict[MessageKeys.REPROCESS_NUMBER] = reprocess_number
-    message_dict[MessageKeys.MONITOR_NAME] = 'noise_1f' # TODO: replace with 'essential'
 
     logger.info('Sending message...')
-    sqs = boto3.client("sqs", region_name='us-east-1')
+    sqs_client = boto3.client("sqs", region_name='us-east-1')
 
-    if message_dict[MessageKeys.FILE_TYPE] == 'science_wfi_level_2':
-            # TODO: replace this with the essential monitor queue after testing
-            sqs_url_for_testing_monitor = get_sqs_url(
-                params[NOISE_1F_MONITOR_QUEUE], 
-                account_id=aws_account_id,
-                sqs_client=sqs
-            )
-            try:
-                response = sqs.send_message(
-                    QueueUrl=sqs_url_for_testing_monitor,
-                    MessageBody=json.dumps(message_dict)
-                )
-                logger.info(f'Sent message. Response: {response}')
-            except Exception as e:
-                logger.error(f"Failed in sending message: {e}")
+    if message_dict[MessageKeys.FILE_TYPE] == FileTypes.L2_SCIENCE:
+        # TODO: replace this with the essential monitor queue after testing
+        message_sqs_url = get_sqs_url(
+            params[NOISE_1F_MONITOR_QUEUE], 
+            account_id=aws_account_id,
+            sqs_client=sqs_client
+        )
+        logger.info('Ingesting L2 science file.')
+        message_dict[MessageKeys.MONITOR_NAME] = 'noise_1f' # TODO: replace with 'essential'
+
+    elif message_dict[MessageKeys.FILE_TYPE] == FileTypes.L1_GUIDE_WINDOW:
+        message_sqs_url = get_sqs_url(
+            params[GUIDE_WINDOW_MONITOR_QUEUE], 
+            account_id=aws_account_id,
+            sqs_client=sqs_client
+        )
+        logger.info('Ingesting L1 guide window file.')
+        message_dict[MessageKeys.MONITOR_NAME] = 'guide_window'
+    else:
+        logger.error(f"Unexpected file type: {message_dict[MessageKeys.FILE_TYPE]}. No monitor message will be sent.")
+        return {'statusCode': StatusCodes.UNEXPECTED_FILE_TYPE,
+                'body': [{'error_message': f'Unexpected file type: {message_dict[MessageKeys.FILE_TYPE]}. No monitor message will be sent.'}]}
+    
+    try:
+        response = sqs_client.send_message(
+            QueueUrl=message_sqs_url,
+            MessageBody=json.dumps(message_dict)
+        )
+        logger.info(f'Sent message. Response: {response}')
+    except Exception as e:
+        logger.error(f"Failed in sending message: {e}")
+        return {'statusCode': StatusCodes.SQS_SEND_FAIL,
+                'body': [{'error_message': f'Failed in sending message: {e}'}]}
 
     logger.info(f'Successfully ingested {message_dict[MessageKeys.FILENAME]} (reprocess number = {reprocess_number}).')
     return {'statusCode': StatusCodes.SUCCESS,
@@ -134,7 +153,7 @@ def create_table_class_from_message(message_dict):
 
     This function interprets a message dictionary produced by the DMD
     notification system, constructs the appropriate metadata table class
-    (currently only for L2 science files), and populates its fields using
+    (currently only for L2 science and L1 guide window files), and populates its fields using
     both message contents and parsed filename information.
 
     Parameters
@@ -156,7 +175,7 @@ def create_table_class_from_message(message_dict):
 
     Returns
     -------
-    meta_table : L2ScienceMetaTable
+    meta_table : L2ScienceMetaTable or L1GuideWindowMetaTable
         Populated metadata table instance containing:
         - filename
         - archive bucket and key
@@ -180,6 +199,23 @@ def create_table_class_from_message(message_dict):
         obs_info = get_info_from_filename(message_dict[MessageKeys.FILENAME], FileTypes.L2_SCIENCE)
         meta_table.program_number = obs_info['program_num']
         meta_table.exposure_number = obs_info['exposure_num']
+        meta_table.visit_id = obs_info['visit_id']
+        meta_table.detector = obs_info['detector']
+        meta_table.optical_element = obs_info['optical_element']
+    
+    elif message_dict[MessageKeys.FILE_TYPE] == FileTypes.L1_GUIDE_WINDOW:
+        meta_table = L1GuideWindowMetaTable()
+        # Save metadata from DMD notification
+        meta_table.filename = message_dict[MessageKeys.FILENAME]
+        meta_table.archive_bucket = message_dict[MessageKeys.ARCHIVE_BUCKET]
+        meta_table.archive_key = message_dict[MessageKeys.ARCHIVE_OBJECT_KEY]
+        meta_table.file_created_datetime = datetime.strptime(message_dict[MessageKeys.FILE_CREATION_TIMESTAMP], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=timezone.utc)
+
+        # Save metadata from the filename
+        obs_info = get_info_from_filename(message_dict[MessageKeys.FILENAME], FileTypes.L1_GUIDE_WINDOW)
+        meta_table.program_number = obs_info['program_num']
+        meta_table.gw_acquisition_number = obs_info['gw_acquisition_num']
+        meta_table.acquisition_id = f"{obs_info['visit_id']}_{obs_info['gw_acquisition_num']}"
         meta_table.visit_id = obs_info['visit_id']
         meta_table.detector = obs_info['detector']
         meta_table.optical_element = obs_info['optical_element']

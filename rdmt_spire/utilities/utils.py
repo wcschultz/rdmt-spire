@@ -108,6 +108,26 @@ def get_info_from_filename(filename, file_type):
             }
         else:
             raise ValueError(f"Filename does not match expected structure. Received: {filename}.")
+    elif file_type == FileTypes.L1_GUIDE_WINDOW:
+        filename_pattern = r'r\d{19}_\d{1}_wfi\d{2}_(f\d{3}|(g|p)rism|none)_gw.asdf'
+        if re.match(filename_pattern, filename.lower()):
+            split_str = filename.split('_')
+            det_str = [x.upper() for x in split_str if x[0].upper() == 'W'][0]
+            opt_elem_str = [x.upper() for x in split_str if x[0].upper() in ['F', 'P', 'G', 'N']][0]
+            obs_nums = {
+                'program_num': int(filename[1:6]), #PPPPP
+                'execution_num': int(filename[6:8]), #CC
+                'pass_num': int(filename[8:11]), #AAA
+                'segment_num': int(filename[11:14]), #SSS
+                'obs_num': int(filename[14:17]), #OOO
+                'visit_num': int(filename[17:20]), #VVV
+                'gw_acquisition_num': int(filename[21:22]), #a
+                'visit_id': filename[1:20], #PPPPPCCAAASSSOOOVVV
+                'detector': det_str, # WFIXX
+                'optical_element': opt_elem_str, # FXXX, GRISM, PRISM, NONE
+            }
+        else:
+            raise ValueError(f"Filename does not match expected structure. Received: {filename}.")
     else:
         raise NotImplementedError(f"File tyle {file_type} is not yet implemented in get_info_from_filename")
     

@@ -1,3 +1,4 @@
+import copy
 import logging
 from datetime import timezone
 
@@ -15,6 +16,7 @@ from ..constants.lambdas import (
     DB_SECRET_NAME,
     MessageKeys,
 )
+from ..db_tables.gw_tables import L1GuideWindowMetaTable, L1GuideWindowResultsTable
 from ..db_tables.sci_tables import L2ScienceMetaTable, L2ScienceResultsTable
 from ..manager import MonitorManager
 from ..utilities.aws_utils import fetch_parameters_from_path, load_s3_object
@@ -73,7 +75,7 @@ def monitor_function(message_dict):
     logger.info('Finished monitor execution.')
 
     # clean up memory
-    metadata_dict = af['roman']['meta']
+    metadata_dict = copy.deepcopy(af['roman']['meta'])
     af.close()
     del content
 
@@ -81,6 +83,9 @@ def monitor_function(message_dict):
     if message_dict[MessageKeys.FILE_TYPE] == FileTypes.L2_SCIENCE:
         metadata_table_class = L2ScienceMetaTable
         results_table_class = L2ScienceResultsTable
+    elif message_dict[MessageKeys.FILE_TYPE] == FileTypes.L1_GUIDE_WINDOW:
+        metadata_table_class = L1GuideWindowMetaTable
+        results_table_class = L1GuideWindowResultsTable
 
     # Connecting to the database
     logger.info('Connecting to the database.')
@@ -157,11 +162,15 @@ def update_metadata_table(session, filename, reprocess_number, monitor_name, met
        column exists; otherwise logs a warning without failing.
     2. If key observation-related fields have not yet been populated on the row
        (determined by a falsy ``observation_id``), initializes them from ``metadata_dict``:
-       - ``observation_id``
-       - ``exp_start_datetime`` (converted to timezone-aware UTC)
-       - ``romancal_version``
-       - ``crds_context``
-       - ``sdf_version``
+       For L2 science files:
+            - ``observation_id``
+            - ``exp_start_datetime`` (converted to timezone-aware UTC)
+            - ``romancal_version``
+            - ``crds_context``
+            - ``sdf_version``
+       For L1 guide window files:
+            - ``acq_start_datetime`` (converted to timezone-aware UTC)
+            - ``sdf_version``
     3. Flushes the session so changes are persisted to the current transaction.
 
     Parameters
@@ -204,11 +213,18 @@ def update_metadata_table(session, filename, reprocess_number, monitor_name, met
     else:
         logger.warning(f"Monitor ({monitor_name}) ran successfully, but {monitor_status_str} is not a column in the metadata table. Not updating status.")
     
-    if not meta_row.observation_id:
-        meta_row.observation_id = metadata_dict['observation']['observation_id']
-        meta_row.exp_start_datetime = metadata_dict['exposure']['start_time'].to_datetime(timezone=timezone.utc)
-        meta_row.romancal_version = metadata_dict['calibration_software_version']
-        meta_row.crds_context = metadata_dict['ref_file']['crds']['context']
-        meta_row.sdf_version = metadata_dict['sdf_software_version'] 
+    if not meta_row.sdf_version:
+        logger.info("Metadata row is missing key fields; populating from ASDF metadata.")
+        if metadata_table_class.file_type == FileTypes.L2_SCIENCE:
+            meta_row.observation_id = metadata_dict['observation']['observation_id']
+            meta_row.exp_start_datetime = metadata_dict['exposure']['start_time'].to_datetime(timezone=timezone.utc)
+            meta_row.romancal_version = metadata_dict['calibration_software_version']
+            meta_row.crds_context = metadata_dict['ref_file']['crds']['context']
+            meta_row.sdf_version = metadata_dict['sdf_software_version']
+        elif metadata_table_class.file_type == FileTypes.L1_GUIDE_WINDOW:
+            meta_row.acq_start_datetime = metadata_dict['t_start'].to_datetime(timezone=timezone.utc)
+            meta_row.sdf_version = metadata_dict['sdf_software_version']
+        else:
+            logger.warning(f"Metadata table class {metadata_table_class.__name__} has unrecognized file type {metadata_table_class.file_type}. Not populating metadata fields.")
 
     session.flush()

@@ -8,17 +8,21 @@ AWS_PARAMETER_PATH = f"/{prefix}/config/"
 # SQS queue parameter names
 NOISE_1F_MONITOR_QUEUE = "noise_1f_monitor_queue"
 ASTROMETRY_MONITOR_QUEUE = "astrometry_monitor_queue"
+GUIDE_WINDOW_MONITOR_QUEUE = "guide_window_monitor_queue"
 
 AWS_MONITOR_QUEUES = [
     NOISE_1F_MONITOR_QUEUE,
     ASTROMETRY_MONITOR_QUEUE,
+    GUIDE_WINDOW_MONITOR_QUEUE,
 ]
 
 # SNS topic parameter names
-REPORTING_TOPIC = "reporting_topic"
+SCIENCE_REPORTING_TOPIC = "science_reporting_topic"
+GUIDE_WINDOW_REPORTING_TOPIC = "guide_window_reporting_topic"
 
 AWS_SNS_TOPICS = [
-    REPORTING_TOPIC,
+    SCIENCE_REPORTING_TOPIC,
+    GUIDE_WINDOW_REPORTING_TOPIC,
 ]
 
 # S3 bucket parameter names
@@ -62,3 +66,4 @@ class MessageKeys(StrEnum):
     REPROCESS_NUMBER = "reprocess_number"
 
     METADATA_CHECK_TYPE = 'metadata_check_type'
+    REPORT_TYPE = 'report_type'

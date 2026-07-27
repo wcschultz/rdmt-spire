@@ -85,11 +85,9 @@ class L2ScienceMetaTable(Base):
             "astrometry_status",
         ]
     
-    @property
-    def file_type(self):
-        # Used for mapping the table classes to the file types they relate to
-        return FileTypes.L2_SCIENCE
-    
+    # Used for mapping the table classes to the file types they relate to
+    file_type = FileTypes.L2_SCIENCE
+
 
 class L2ScienceResultsTable(ResultsBase):
     """Class containing schema for the L2 Science data monitoring results table."""
@@ -122,7 +120,5 @@ class L2ScienceResultsTable(ResultsBase):
             "noise_1f_power_ratio_eval",
         ]
 
-    @property
-    def file_type(self):
-        # Used for mapping the table classes to the file types they relate to
-        return FileTypes.L2_SCIENCE
+    # Used for mapping the table classes to the file types they relate to
+    file_type = FileTypes.L2_SCIENCE

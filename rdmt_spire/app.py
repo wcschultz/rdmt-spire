@@ -47,7 +47,8 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
                 elif body[MessageKeys.FUNCTION_TYPE] == FunctionTypes.METADATA_CHECK:
                     return metadata_check_function(body, aws_account_id)  
                 elif body[MessageKeys.FUNCTION_TYPE] == FunctionTypes.REPORT_GEN:
-                    return report_function() 
+                    report_type = body.get(MessageKeys.REPORT_TYPE)
+                    return report_function(report_type)
             
             else:
                 function_type_checks = [MessageKeys.FUNCTION_TYPE in json.loads(rec['body']['Message']).keys() for rec in event['Records']]
