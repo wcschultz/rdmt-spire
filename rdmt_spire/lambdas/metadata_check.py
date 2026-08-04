@@ -70,6 +70,9 @@ def metadata_check_function(message_dict, aws_account_id):
                 account_id=aws_account_id
             )
     elif message_dict[MessageKeys.METADATA_CHECK_TYPE] == 'clean_statuses':
+        # !!! To be used for testing!!!!
+        # It resets the monitor statuses in the database which allows us to test report generation without waiting for all monitors to execute.
+
         # Query: update any rows with any _status == 0 to -1 (i.e., reset them to not run).
         # Derive _status columns directly from the ORM mapper so this stays in sync
         # with the table definition without manual updates.
