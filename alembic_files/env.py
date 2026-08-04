@@ -13,7 +13,7 @@ from rdmt_spire.constants.lambdas import (
 )
 from rdmt_spire.db_tables.base import Base
 from rdmt_spire.utilities.aws_utils import fetch_parameters_from_path
-from rdmt_spire.utilities.db_utils import get_connection_url
+from rdmt_spire.utilities.db_utils import get_connection_url, get_engine_from_url
 
 # this is the Alembic Config object, which provides
 # access to values within the .ini file in use.
@@ -64,7 +64,7 @@ def run_migrations_online() -> None:
     """
     app_logger.info("Running Alembic migrations in online mode.")
     url = get_connection_url(db_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])
-    connectable = create_engine(url, poolclass=NullPool)
+    connectable = get_engine_from_url(url)
     with connectable.connect() as connection:
         context.configure(
             connection=connection, target_metadata=target_metadata
