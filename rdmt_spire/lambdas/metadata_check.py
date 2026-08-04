@@ -2,7 +2,7 @@ import json
 import logging
 
 import boto3
-from sqlalchemy import select
+from sqlalchemy import case, inspect as sa_inspect, or_, select, update
 from sqlalchemy.orm import Session
 
 from ..constants.codes import StatusCodes
@@ -69,6 +69,24 @@ def metadata_check_function(message_dict, aws_account_id):
                 params[ASTROMETRY_MONITOR_QUEUE], 
                 account_id=aws_account_id
             )
+    elif message_dict[MessageKeys.METADATA_CHECK_TYPE] == 'clean_statuses':
+        # Query: update any rows with any _status == 0 to -1 (i.e., reset them to not run).
+        # Derive _status columns directly from the ORM mapper so this stays in sync
+        # with the table definition without manual updates.
+        status_cols = [
+            getattr(L2ScienceMetaTable, attr.key)
+            for attr in sa_inspect(L2ScienceMetaTable).column_attrs
+            if attr.key.endswith('_status')
+        ]
+        stmt = (
+            update(L2ScienceMetaTable)
+            .where(or_(*[col == 0 for col in status_cols]))
+            .values({col.key: case((col == 0, -1), else_=col) for col in status_cols})
+            .execution_options(synchronize_session=False)
+        )
+        with Session(connect_to_db(database_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])) as session:
+            session.execute(stmt)
+            session.commit()
     else:
         # Unsupported check type: log and return an informative response.
         error_message = f'metadata_check_function is not yet implemented for {MessageKeys.METADATA_CHECK_TYPE} = {message_dict[MessageKeys.METADATA_CHECK_TYPE]}.'
