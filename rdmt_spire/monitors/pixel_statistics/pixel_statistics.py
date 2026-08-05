@@ -7,14 +7,8 @@ from astropy.coordinates import SkyCoord
 from roman_datamodels.dqflags import pixel as dqflags
 
 from ...constants.pixel_statistics_constants import (
-    DELTA_PLATE_SCALE_CENTER_THRESHOLD,
-    DELTA_PLATE_SCALE_CORNER_BL_THRESHOLD,
-    DELTA_PLATE_SCALE_CORNER_BR_THRESHOLD,
-    DELTA_PLATE_SCALE_CORNER_TL_THRESHOLD,
-    DELTA_PLATE_SCALE_CORNER_TR_THRESHOLD,
     PIXEL_STATISTICS_METRIC_NAMES,
-    PLATE_SCALE_CENTER_X_THRESHOLD,
-    PLATE_SCALE_CENTER_Y_THRESHOLD,
+    PLATE_SCALE_THRESHOLDS,
 )
 from ..monitor_base import BaseMonitor
 
@@ -77,20 +71,9 @@ class PixelStatisticsMonitor(BaseMonitor):
         """
         Evaluate computed metrics against monitor acceptance thresholds.
         """
-        # Dict of the metrics we actually need to evaluate
-        THRESHOLDS = {
-            "PLATE_SCALE_CENTER_X": PLATE_SCALE_CENTER_X_THRESHOLD,
-            "PLATE_SCALE_CENTER_Y": PLATE_SCALE_CENTER_Y_THRESHOLD,
-            "DELTA_PLATE_SCALE_CORNER_BL": DELTA_PLATE_SCALE_CORNER_BL_THRESHOLD,
-            "DELTA_PLATE_SCALE_CORNER_BR": DELTA_PLATE_SCALE_CORNER_BR_THRESHOLD,
-            "DELTA_PLATE_SCALE_CORNER_TL": DELTA_PLATE_SCALE_CORNER_TL_THRESHOLD,
-            "DELTA_PLATE_SCALE_CORNER_TR": DELTA_PLATE_SCALE_CORNER_TR_THRESHOLD,
-            "DELTA_PLATE_SCALE_CENTER": DELTA_PLATE_SCALE_CENTER_THRESHOLD,
-        }
-
         for metric_name in PIXEL_STATISTICS_METRIC_NAMES:
             # Only a subset of the metrics are being actually evaluated
-            if metric_name in THRESHOLDS:
+            if metric_name in PLATE_SCALE_THRESHOLDS:
                 if "DELTA" in metric_name:
                     passed = abs(self.get_data(metric_name)) <= THRESHOLDS[metric_name]
                 else:
@@ -157,14 +140,14 @@ class PixelStatisticsMonitor(BaseMonitor):
         sat_mask = (dq & dqflags["SATURATED"] != 0)
 
         # Getting mask of saturated + DNU pixels
-        mask = (dq & dqflags["SATURATED"] != 0) & (dq & dqflags["DO_NOT_USE"] != 0)
+        mask = sat_mask & (dq & dqflags["DO_NOT_USE"] != 0)
         masked_im = im[~mask]
 
         results = {}
         results["N_SATURATED_PIX"] = np.count_nonzero(sat_mask)
 
-        results["MIN_RAMP_VALUE"] = np.min(masked_im)
-        results["MAX_RAMP_VALUE"] = np.max(masked_im)
+        results["MIN_RAMP_VALUE"] = np.nanmin(masked_im)
+        results["MAX_RAMP_VALUE"] = np.nanmax(masked_im)
 
         results["MEAN_RAMP_VALUE"] = np.nanmean(masked_im)
         results["MEDIAN_RAMP_VALUE"] = np.nanmedian(masked_im)
@@ -176,7 +159,7 @@ class PixelStatisticsMonitor(BaseMonitor):
         return results
 
 
-    def _local_plate_scale(self, wcs, x, y, step=1.0):
+    def _local_plate_scale(self, wcs, x, y, step=0.5):
         """
         Local plate scale (arcsec/pixel) in x and y at pixel (x, y),
         using astropy SkyCoord for exact angular separations.
