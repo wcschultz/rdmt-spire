@@ -17,7 +17,7 @@ This file tracks the development status and prioritization of monitors across th
 | [Guide Window Monitor](#monitor-guide-window) | Implemented |
 | [Source Catalog Monitor](#monitor-source-catalog) | Prioritized (P1) |
 | [Photometry Monitor](#monitor-photometry) | Prioritized (P1) |
-| [Pixel Monitor](#monitor-pixel-monitor) | Prioritized (P2) |
+| [Pixel Monitor](#monitor-pixel-monitor) | Implemented |
 | [Flat Field Flux Monitor](#monitor-flat-field-flux) | Prioritized (P2) |
 | [Jump Monitor](#monitor-jump) | Prioritized (P2) |
 | [Persistence Monitor](#monitor-persistence) | Prioritized (P3) |
@@ -74,6 +74,14 @@ This file tracks the development status and prioritization of monitors across th
   - [PR 35](https://github.com/spacetelescope/rdmt-spire-archival/pull/35) - Initial implementation
 - **Description:** The three main goals for this monitor are to 1) track the jitter in each detector for each exposure,  2) identify failed guide star acquisitions (especially those that did not cause the entire exposure to fail) so they can be further reviewed, 3) compare the observed guide star counts to the predicted counts to help tighten the dim and bright bounds of future observations. See [guide_window README](rdmt_spire/monitors/guide_window/README.md) for details.
 
+<a id="monitor-pixel-monitor"></a>
+#### Pixel Monitor
+- **Submodule:** [pixel](rdmt_spire/monitors/pixel/)
+- **Related Issues/PRs:**
+  - [ISSUE 8](https://github.com/spacetelescope/rdmt-spire/issues/8) - Requirements and design
+  - [PR 16](https://github.com/spacetelescope/rdmt-spire/pull/16) - Initial implementation
+- **Description:** This is a large catch-all monitor for any types of pixel that would be helpful to trend. This currently includes, but is not limited to the number of saturated pixels, min/mean/max/std/percentiles of the pixel values, pixel scale at the corners and center of the detector, and includes these values over the entire detector as well as different regions (e.g. 4 corners and a central region).
+
 ---
 
 ### Prioritized
@@ -109,14 +117,6 @@ This file tracks the development status and prioritization of monitors across th
 - **Priority Level:** P2 - Medium priority
 - **Estimated Work:** M (adding clustering analysis to identify snowballs and other extended sources adds work)
 - **Description:** Using the DQ array (and the resultant DQ array if available) from the L2 file to count the number of jumps. Ideally this would include a clustering analysis to distinguish CR events from snowballs and other extended sources (e.g. moving objects).
-
-<a id="monitor-pixel-monitor"></a>
-#### Pixel Monitor
-- **Related Issues:**
-  - [ISSUE 8](https://github.com/spacetelescope/rdmt-spire/issues/8)
-- **Priority Level:** P2 - Medium priority
-- **Estimated Work:** S
-- **Description:** This is a large catch-all monitor for any types of pixel statistics that would be helpful to trend. This currently includes, but is not limited to the number of saturated pixels, min/mean/max/std/percentiles of the pixel values, pixel scale at the corners and center of the detector, mean/median and std of chi^2 fitting values, and includes these values over the entire detector as well as some regions (e.g. 4 corners and a central region).
 
 <a id="monitor-persistence"></a>
 #### Persistence Monitor
