@@ -75,9 +75,9 @@ class PixelMonitor(BaseMonitor):
             # Only a subset of the metrics are being actually evaluated
             if metric_name in PLATE_SCALE_THRESHOLDS:
                 if "DELTA" in metric_name:
-                    passed = abs(self.get_data(metric_name)) <= THRESHOLDS[metric_name]
+                    passed = abs(self.get_data(metric_name)) <= PLATE_SCALE_THRESHOLDS[metric_name]
                 else:
-                    passed = self.get_data(metric_name) >= THRESHOLDS[metric_name]
+                    passed = self.get_data(metric_name) >= PLATE_SCALE_THRESHOLDS[metric_name]
 
             # If not defined in the constants file, then it's just being set to True to check trending
             else:

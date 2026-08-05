@@ -108,7 +108,7 @@ class L2ScienceResultsTable(ResultsBase):
     noise_1f_power_ratio:       Mapped[Optional[float]] = mapped_column(Float())
     noise_1f_power_ratio_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
 
-    # Pixel statistics monitor results
+    # Pixel monitor results
     plate_scale_center_x:        Mapped[Optional[float]] = mapped_column(Float())
     plate_scale_center_x_eval:   Mapped[Optional[bool]]  = mapped_column(Boolean())
     plate_scale_center_y:        Mapped[Optional[float]] = mapped_column(Float())
