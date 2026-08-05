@@ -130,10 +130,9 @@ def get_engine_from_url(connection_url, recursive_depth=0):
         connection = engine.connect()
     except OperationalError as e:
         logger.warning(f"Received OperationalError when trying to connect to the database: {e}")
-        logger.info(f"Retrying connection to the database after a short wait... (retry depth: {recursive_depth})")
         wait_time = 5
         max_retries = 2
-        logger.warning(f"Received database timeout error. Waiting {wait_time} seconds and retrying.")
+        logger.info(f"Retrying connection to the database after a short wait... (retry depth: {recursive_depth}, wait time: {wait_time} seconds, max retries: {max_retries})")
         time.sleep(wait_time) # wait for the database to wake up
         if recursive_depth < max_retries: # only repeat the process a set number of times
             engine = get_engine_from_url(connection_url, recursive_depth=recursive_depth+1)
