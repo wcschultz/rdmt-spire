@@ -72,6 +72,8 @@ def metadata_check_function(message_dict, aws_account_id):
     elif message_dict[MessageKeys.METADATA_CHECK_TYPE] == 'clean_statuses':
         # !!! To be used for testing!!!!
         # It resets the monitor statuses in the database which allows us to test report generation without waiting for all monitors to execute.
+        logger.info(f'Cleaning status columns (received check type: {message_dict[MessageKeys.METADATA_CHECK_TYPE]}).')
+        logger.warning('This operation will reset all monitor status columns in the L2ScienceMetaTable to -1 for any rows where the status is currently 0. This is intended for testing purposes only and should be used with caution.')
 
         # Query: update any rows with any _status == 0 to -1 (i.e., reset them to not run).
         # Derive _status columns directly from the ORM mapper so this stays in sync
@@ -87,9 +89,14 @@ def metadata_check_function(message_dict, aws_account_id):
             .values({col.key: case((col == 0, -1), else_=col) for col in status_cols})
             .execution_options(synchronize_session=False)
         )
+        logger.info(f'Executing update statement to reset monitor statuses...')
         with Session(connect_to_db(database_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])) as session:
             session.execute(stmt)
             session.commit()
+
+        logger.info('Successfully reset monitor statuses. No messages will be sent to SQS for this operation.')
+        return {'statusCode': StatusCodes.SUCCESS,
+                'body': [{'message':'Successfully reset monitor statuses in the database.'}]}
     else:
         # Unsupported check type: log and return an informative response.
         error_message = f'metadata_check_function is not yet implemented for {MessageKeys.METADATA_CHECK_TYPE} = {message_dict[MessageKeys.METADATA_CHECK_TYPE]}.'
