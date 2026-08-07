@@ -55,7 +55,8 @@ class MonitorManager:
         if monitor_name == "noise_1f":
             monitor_noise_1f = import_module("rdmt_spire.monitors.noise_1f")
             self.monitor_objects.append(
-                monitor_noise_1f.Noise1fMonitor(self.asdf_file))
+                monitor_noise_1f.Noise1fMonitor(self.asdf_file)
+            )
 
         elif monitor_name == "astrometry":
             if monitor_config is None or "astrometry" not in monitor_config or "datadir" not in monitor_config["astrometry"]:
@@ -63,18 +64,28 @@ class MonitorManager:
                 self.statusCode = StatusCodes.FAILURE
                 self.errors.append("MonitorManager: Missing 'datadir' in monitor_config for astrometry monitor.")
                 return
+            
             monitor_astrometry = import_module("rdmt_spire.monitors.astrometry")
             self.monitor_objects.append(
-                monitor_astrometry.AstrometryMonitor(self.asdf_file, monitor_config["astrometry"]["datadir"]))
+                monitor_astrometry.AstrometryMonitor(self.asdf_file, monitor_config["astrometry"]["datadir"])
+            )
             
         elif monitor_name == "guide_window":
             monitor_guide_window = import_module("rdmt_spire.monitors.guide_window")
             self.monitor_objects.append(
-                monitor_guide_window.GuideWindowMonitor(self.asdf_file))
+                monitor_guide_window.GuideWindowMonitor(self.asdf_file)
+            )
+
+        elif monitor_name == "pixel_statistics":
+            monitor_pixel_statistics = import_module("rdmt_spire.monitors.pixel_statistics")
+            self.monitor_objects.append(
+                monitor_pixel_statistics.PixelStatisticsMonitor(self.asdf_file)
+            )
 
         elif monitor_name == "base_monitor":
             self.monitor_objects.append(
-                BaseMonitor(self.asdf_file))
+                BaseMonitor(self.asdf_file)
+            )
 
         else:
             self.statusCode = StatusCodes.FAILURE
