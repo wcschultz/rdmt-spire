@@ -144,6 +144,7 @@ class PixelMonitor(BaseMonitor):
 
         # Getting mask of saturated and/or DNU pixels
         mask = sat_mask | dnu_mask
+        mask = mask | ~np.isfinite(im)
         masked_im = im[~mask]
 
         results = {}
@@ -164,8 +165,8 @@ class PixelMonitor(BaseMonitor):
             results["MEAN_RAMP_VALUE"] = np.nanmean(masked_im)
             results["MEDIAN_RAMP_VALUE"] = np.nanmedian(masked_im)
             results["STD_RAMP_VALUE"] = np.nanstd(masked_im)
-            results["P95_RAMP_VALUE"] = np.percentile(masked_im, 95)
-            results["P05_RAMP_VALUE"] = np.percentile(masked_im, 5)
+            results["P95_RAMP_VALUE"] = np.nanpercentile(masked_im, 95)
+            results["P05_RAMP_VALUE"] = np.nanpercentile(masked_im, 5)
 
         return results
 
