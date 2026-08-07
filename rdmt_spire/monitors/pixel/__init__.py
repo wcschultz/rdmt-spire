@@ -1,1 +1,1 @@
-from .pixel_statistics import PixelStatisticsMonitor as PixelStatisticsMonitor
+from .pixel import PixelMonitor as PixelMonitor
