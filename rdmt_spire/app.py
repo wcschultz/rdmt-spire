@@ -31,6 +31,8 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
     """
     try:
         aws_account_id = context.invoked_function_arn.split(":")[4]
+        # Parse the event to determine which function to call based on the message type.
+        # SQS events will have a 'Records' key. These will trigger the ingest and monitor functions
         if 'Records' in event:
             # batch_size must be 1 for most execution options
             if len(event['Records']) == 1:
@@ -46,12 +48,6 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
                     return ingest_single(message_dict, notification_datetime, aws_account_id)
                 elif body[MessageKeys.FUNCTION_TYPE] == FunctionTypes.MONITOR:
                     return monitor_function(body)
-                elif body[MessageKeys.FUNCTION_TYPE] == FunctionTypes.METADATA_CHECK:
-                    return metadata_check_function(body, aws_account_id)
-                elif body[MessageKeys.FUNCTION_TYPE] == FunctionTypes.REPORT_GEN:
-                    report_type = body.get(MessageKeys.REPORT_TYPE)
-                    return report_function(report_type)
-
             else:
                 function_type_checks = [MessageKeys.FUNCTION_TYPE in json.loads(rec['body']['Message']).keys() for rec in event['Records']]
 
@@ -63,7 +59,13 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
                 else:
                     return {'statusCode': StatusCodes.BAD_LAMBDA_BATCH_SIZE,
                     'body': [{'error_message':'A lambda function not running ingest_function received more than 1 request.'}]}
-
+        # Other events should have a 'function_type' key in the event dictionary. These will trigger the report and metadata_check functions
+        elif MessageKeys.FUNCTION_TYPE in event.keys():
+            if event[MessageKeys.FUNCTION_TYPE] == FunctionTypes.METADATA_CHECK:
+                return metadata_check_function(event, aws_account_id)
+            elif event[MessageKeys.FUNCTION_TYPE] == FunctionTypes.REPORT_GEN:
+                report_type = event.get(MessageKeys.REPORT_TYPE)
+                return report_function(report_type)
         else:
             return {'statusCode': StatusCodes.BAD_EVENT_FORMAT,
                     'body': [{'error_message':'Incorrect event format provided to app.py'}]}
