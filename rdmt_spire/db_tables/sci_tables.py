@@ -48,15 +48,16 @@ class L2ScienceMetaTable(Base):
     # Information populated by RDMT
     monitor_end_datetime:   Mapped[Optional[datetime]] = mapped_column(DateTime()) # populated by Spire
     # Below are the monitor completion checks:
-    # -1 indicates the monitor should not be run
-    # 0 indicates the monitor still needs to be run
     # 1 indicates the monitor ran successfully
+    # 0 indicates the monitor still needs to be run
+    # -1 indicates the monitor should not be run
+    # -2 indicates the monitor may need to be run depending on the metadata checks
     essential_status:       Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
-    persistence_status:     Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
+    persistence_status:     Mapped[int] = mapped_column(Integer(), default=-1) # populated by Spire
     comprehensive_status:   Mapped[int] = mapped_column(Integer(), default=-1) # populated by Spire
     
     # for testing
-    astrometry_status:      Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
+    astrometry_status:      Mapped[int] = mapped_column(Integer(), default=-2) # populated by Spire
     noise_1f_status:        Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
 
     def _get_verification_columns(self):
@@ -64,7 +65,7 @@ class L2ScienceMetaTable(Base):
             "filename",
             "reprocess_number",
             "program_number",
-            "exposure_number"
+            "exposure_number",
             "visit_id",
             "detector",
             "optical_element",
