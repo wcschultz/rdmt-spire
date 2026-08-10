@@ -23,7 +23,6 @@ class MonitorManager:
 
     def __init__(self, input_file: asdf.AsdfFile | str, monitor_name: str, monitor_config: Dict[str, Any] = None):
         
-
         self.statusCode = StatusCodes.SUCCESS
         self.errors: list[str] = []
         self.log: list[str] = []
@@ -52,7 +51,16 @@ class MonitorManager:
             self.statusCode = StatusCodes.FAILURE
             self.errors.append(f"MonitorManager: failed to open ASDF file: {e}")
 
-        if monitor_name == "noise_1f":
+        if monitor_name == "essential":
+            monitor_noise_1f = import_module("rdmt_spire.monitors.noise_1f")
+            monitor_pixel = import_module("rdmt_spire.monitors.pixel_statistics")
+            self.monitor_objects.append(
+                monitor_noise_1f.Noise1fMonitor(self.asdf_file)
+            )
+            self.monitor_objects.append(
+                monitor_pixel.PixelStatisticsMonitor(self.asdf_file)
+            )
+        elif monitor_name == "noise_1f":
             monitor_noise_1f = import_module("rdmt_spire.monitors.noise_1f")
             self.monitor_objects.append(
                 monitor_noise_1f.Noise1fMonitor(self.asdf_file)
