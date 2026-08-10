@@ -53,12 +53,8 @@ class L2ScienceMetaTable(Base):
     # -1 indicates the monitor should not be run
     # -2 indicates the monitor may need to be run depending on the metadata checks
     essential_status:       Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
-    persistence_status:     Mapped[int] = mapped_column(Integer(), default=-1) # populated by Spire
-    comprehensive_status:   Mapped[int] = mapped_column(Integer(), default=-1) # populated by Spire
-    
-    # for testing
+    # periodic monitors are run on a schedule and may not be run for every file. The status is set to -1 if the monitor should not be run for this file.   
     astrometry_status:      Mapped[int] = mapped_column(Integer(), default=-2) # populated by Spire
-    noise_1f_status:        Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
 
     def _get_verification_columns(self):
         return [
@@ -81,8 +77,6 @@ class L2ScienceMetaTable(Base):
             "sdf_version",
             "monitor_end_datetime",
             "essential_status",
-            "comprehensive_status",
-            "persistence_status",
             "astrometry_status",
         ]
     
