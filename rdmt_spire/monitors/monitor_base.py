@@ -57,18 +57,18 @@ class BaseMonitor(ABC):
         data_card = DataCard(
             self.filename,
             self.monitor_name,
-            data_name,
+            data_name.lower(),
             data_value,
             data_unit,
             evaluation_value
         )
-        self.data[data_name] = data_card
+        self.data[data_name.lower()] = data_card
 
     def add_evaluation(self, data_name: str, eval_value: bool):
         """
         Add or modify the evaluation value of a given data card.
         """
-        self.data[data_name].evaluation_value = eval_value
+        self.data[data_name.lower()].evaluation_value = eval_value
 
     @abstractmethod
     def calculate_metrics(self):
@@ -112,7 +112,7 @@ class BaseMonitor(ABC):
                 return list(self.data.values())
         else:
             try:
-                data_card = self.data[data_name]
+                data_card = self.data[data_name.lower()]
             except KeyError: # TODO: figure out how to implement this better to actually pass the error message to Lambda and handle this better.
                 raise ValueError(f'No metric has been added with data_name={data_name}. Please check implementation.')
             if serialized:
@@ -120,11 +120,11 @@ class BaseMonitor(ABC):
             else:
                 return data_card
 
-    def get_data(self, data_name):
+    def get_data(self, data_name: str):
         """
         Helper function to retrieve the value of a metric saved in a DataCard.
         """
-        return self.get_data_card(data_name).data_value
+        return self.get_data_card(data_name.lower()).data_value
 
     def is_valid_metric(self, metric_name: str, value: Any) -> bool:
         """
