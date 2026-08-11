@@ -1,8 +1,9 @@
+from datetime import timedelta, datetime
 import json
 import logging
 
 import boto3
-from sqlalchemy import case, inspect as sa_inspect, or_, select, update
+from sqlalchemy import case, inspect as sa_inspect, or_, and_, tuple_, select, update, is_not
 from sqlalchemy.orm import Session
 
 from ..constants.codes import StatusCodes
@@ -51,95 +52,206 @@ def metadata_check_function(message_dict, aws_account_id):
             A list with a message on success or an error message when not implemented.
 
     """
-    # Generate three dictionaries to keep track of: the SQL statements to run,
-    # their corresponding result rows, and the destination SQS URLs.
-    sql_statements = {}
-    sql_results = {}
-    sqs_urls = {}
 
     params = fetch_parameters_from_path(AWS_PARAMETER_PATH, expected_parameters=AWS_MONITOR_QUEUES + AWS_DBS)
 
-    # Determine which query(s) to run based on the requested check type.
-    # Currently, only 'astrometry' is supported.
-    if message_dict[MessageKeys.METADATA_CHECK_TYPE] == 'astrometry':
-        # Query: select rows with astrometry_status == 0 (i.e., need monitoring).
-        sql_statements['astrometry'] = select(L2ScienceMetaTable).where(L2ScienceMetaTable.astrometry_status == 0)
-        # Resolve the SQS queue URL for astrometry monitoring for the given account.
-        sqs_urls['astrometry'] = get_sqs_url(
-                params[ASTROMETRY_MONITOR_QUEUE], 
-                account_id=aws_account_id
-            )
-    elif message_dict[MessageKeys.METADATA_CHECK_TYPE] == 'clean_statuses':
-        # !!! To be used for testing!!!!
-        # It resets the monitor statuses in the database which allows us to test report generation without waiting for all monitors to execute.
-        logger.info(f'Cleaning status columns (received check type: {message_dict[MessageKeys.METADATA_CHECK_TYPE]}).')
-        logger.warning('This operation will reset all monitor status columns in the L2ScienceMetaTable to -1 for any rows where the status is currently 0. This is intended for testing purposes only and should be used with caution.')
+    metadata_check_status_columns = [
+        "astrometry_status",
+        "test_reject_status",  # purely for testing!
+    ]
 
-        # Query: update any rows with any _status == 0 to -1 (i.e., reset them to not run).
-        # Derive _status columns directly from the ORM mapper so this stays in sync
-        # with the table definition without manual updates.
-        status_cols = [
-            getattr(L2ScienceMetaTable, attr.key)
-            for attr in sa_inspect(L2ScienceMetaTable).column_attrs
-            if attr.key.endswith('_status')
-        ]
-        stmt = (
-            update(L2ScienceMetaTable)
-            .where(or_(*[col == 0 for col in status_cols]))
-            .values({col.key: case((col == 0, -1), else_=col) for col in status_cols})
-            .execution_options(synchronize_session=False)
-        )
-        logger.info(f'Executing update statement to reset monitor statuses...')
-        with Session(connect_to_db(database_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])) as session:
-            session.execute(stmt)
-            session.commit()
+    logger.info(f"Running Metadata check for columns: {', '.join(metadata_check_status_columns)}")
 
-        logger.info('Successfully reset monitor statuses. No messages will be sent to SQS for this operation.')
-        return {'statusCode': StatusCodes.SUCCESS,
-                'body': [{'message':'Successfully reset monitor statuses in the database.'}]}
-    else:
-        # Unsupported check type: log and return an informative response.
-        error_message = f'metadata_check_function is not yet implemented for {MessageKeys.METADATA_CHECK_TYPE} = {message_dict[MessageKeys.METADATA_CHECK_TYPE]}.'
-        logger.error(error_message)
-        return {'statusCode': StatusCodes.NOT_YET_IMPLEMENTED,
-                'body': [{'error_message':error_message}]}
-
-    logger.info(f'Running metadata check for {MessageKeys.METADATA_CHECK_TYPE} = {message_dict[MessageKeys.METADATA_CHECK_TYPE]}.')
-    # Run the query(s) to identify files that need monitors and bundle them together
-    logger.info('connecting to the db')
+    logger.info('Connecting to the database...')
     sql_engine = connect_to_db(database_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])
 
-    logger.info(f"Querying the metadata table for the following keys: {', '.join(sql_statements.keys())}")
-    with Session(sql_engine) as session:
-        for key, stmnt in sql_statements.items():
-            # Execute the query and materialize all matching rows for this key.
-            result_rows = session.scalars(stmnt).all()
-            sql_results[key] = result_rows
-            logger.info(f'Found {len(result_rows)} rows that match {key} criteria.')
+    # Query the database for all *_status columns in metadata_check_status_columns that are set to -2 which indicates they may need to be run. Return all rows. If there are other _status columns that are set to -2, raise a ValueError.
+    key_predicate = and_(
+        *[getattr(L2ScienceMetaTable, col) == -2 for col in metadata_check_status_columns]
+    )
 
-    # Send the correct messages to the correct queues
-    logger.info('Sending messages...')
-    sqs = boto3.client("sqs", region_name='us-east-1')
+    with sql_engine.connect() as session:
+        pk_rows = session.execute(
+            select(
+                L2ScienceMetaTable.filename,
+                L2ScienceMetaTable.reprocess_number,
+                L2ScienceMetaTable.exp_start_datetime,
+            ).where(key_predicate)
+            .order_by(L2ScienceMetaTable.exp_start_datetime.asc())
+        ).all()
+
+        if not pk_rows:
+            logger.info("No rows found with any *_status == -2. No messages will be sent to SQS.")
+            return {
+                "statusCode": StatusCodes.SUCCESS,
+                "body": [{"message": "No rows found with any *_status == -2. No messages sent to SQS."}],
+            }
+
+        # Define the selection rules for each metadata check type. Each rule consists of a SQLAlchemy query
+        rules = {}
+
+        # astrometry should run every hour, so query to find last time it ran and find any occurrences that need to be run.
+        astrometry_rule = every_other_astrometry_rule(pk_rows)
+        # TODO: test once we have more data spread across time
+        #astrometry_rule = time_based_astrometry_rule(session, pk_rows)
+        rules['astrometry_status'] = astrometry_rule
+
+
+        # test_reject_status is purely for testing and should run on every file that has it set to -2
+        test_reject_rule = (L2ScienceMetaTable.test_reject_status == -2, 0)
+
+        rules['test_reject_status'] = test_reject_rule
+
+        for col, rule in rules.items():
+            if isinstance(rule, tuple) and len(rule) == 2:
+                continue  # valid single rule
+            elif isinstance(rule, list) and all(isinstance(r, tuple) and len(r) == 2 for r in rule):
+                continue  # valid list of rules
+            else:
+                raise ValueError(f"Invalid rule format for {col}: {rule}. Must be a tuple or list of tuples.")
+
+        # Update the rows that match the selection rules to 0 and set all other rows to -1
+        pk_values = [(filename, reprocess_number) for filename, reprocess_number, _ in pk_rows]
+
+        stmt = (
+            update(L2ScienceMetaTable)
+            .where(
+                tuple_(
+                    L2ScienceMetaTable.filename,
+                    L2ScienceMetaTable.reprocess_number,
+                ).in_(pk_values)
+            )
+            .values({
+                col_name: case(*cases, else_=-1)
+                for col_name, cases in rules.items()
+            })
+            .execution_options(synchronize_session=False)
+        )
+
+        session.execute(stmt)
+        session.commit()
+
+
+        # Loop over rows that have had a _status set to 0 and send a message to the appropriate SQS queue for each row.
+        updated_rows = session.execute(
+            select(L2ScienceMetaTable).where(
+                tuple_(
+                    L2ScienceMetaTable.filename,
+                    L2ScienceMetaTable.reprocess_number,
+                ).in_(pk_values),
+                or_(*[getattr(L2ScienceMetaTable, col) == 0 for col in metadata_check_status_columns]),
+            )
+        ).scalars().all()
+
+    if not updated_rows:
+        return {
+            "statusCode": StatusCodes.SUCCESS,
+            "body": [{"message": "No rows found with any *_status == 0 after update. No messages sent to SQS."}],
+        }
     
-    for key, row_list in sql_results.items():
-        for row in row_list:
-            monitor_dict = generate_message_dict_from_metadata_table(row, key)
+    logger.info(f"Found {len(updated_rows)} rows with *_status == 0 after update. Sending messages to SQS.")
+    sqs = boto3.client("sqs", region_name='us-east-1')
+    astrometry_rows = [row for row in updated_rows if row.astrometry_status == 0]
+    if astrometry_rows:
+        astrometry_queue = get_sqs_url(
+            params[ASTROMETRY_MONITOR_QUEUE], 
+            account_id=aws_account_id
+        )
+        for row in astrometry_rows:
+            monitor_dict = generate_message_dict_from_metadata_table(row, 'astrometry')
             try:
                 # Send the message to the queue associated with this key.
                 response = sqs.send_message(
-                    QueueUrl=sqs_urls[key],
+                    QueueUrl=astrometry_queue,
                     MessageBody=json.dumps(monitor_dict)
                 )
-                logger.info(f'Message sent for {key}. Response: {response}')
+                logger.info(f'Message sent for astrometry. Response: {response}')
             except Exception as e:
                 logger.error(f"Failed in sending message: {e}")
                 # TODO: how do we want to handle this error correctly?
                 raise e
 
+    test_reject_rows = [row for row in updated_rows if row.test_reject_status == 0]
+    if test_reject_rows:
+        raise NotImplementedError("test_reject_status is purely for testing and should not be used in production.")
+
     logger.info('Successfully sent all messages. Metadata check complete,')
 
     return {'statusCode': StatusCodes.SUCCESS,
                 'body': [{'message':'metadata_check_function ran successfully.'}]} 
+
+def every_other_astrometry_rule(pk_rows):
+    """
+    Determine which rows should have astrometry monitoring run based on a rule that selects every other row.
+
+    Parameters
+    ----------
+    pk_rows : list of tuples
+        A list of tuples containing at least (filename, reprocess_number, exp_start_datetime) for each row that has astrometry_status == -2.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - A SQLAlchemy boolean expression that evaluates to True for rows that should have astrometry monitoring run (i.e., every other row).
+        - An integer (0) indicating the new status value for rows that should have astrometry monitoring run.
+    """
+    selected_pks = []
+    for i, (filename, reprocess_number, _) in enumerate(pk_rows):
+        if i % 2 == 0:  # Select every other row (even index)
+            selected_pks.append((filename, reprocess_number))
+
+    astrometry_should_run = tuple_(
+        L2ScienceMetaTable.filename,
+        L2ScienceMetaTable.reprocess_number,
+    ).in_(selected_pks)
+
+    return (astrometry_should_run, 0)
+
+def time_based_astrometry_rule(session, pk_rows):
+    """
+    Determine which rows should have astrometry monitoring run based on a time-based rule.
+    
+    Parameters
+    ----------
+    session : sqlalchemy.orm.Session
+        An active SQLAlchemy session used to query the database.
+    pk_rows : list of tuples
+        A list of tuples containing at least (filename, reprocess_number, exp_start_datetime) for each row that has astrometry_status == -2.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - A SQLAlchemy boolean expression that evaluates to True for rows that should have astrometry monitoring run (i.e., those that are more than 1 hour after the last row that had astrometry monitoring run).
+        - An integer (0) indicating the new status value for rows that should have astrometry monitoring run.
+    """
+    astrometry_time_delta = timedelta(hours=1)
+    query_time_delta = timedelta(days=30) # only check the last 30 days of data for astrometry
+    last_astrometry_time = session.execute(
+        select(L2ScienceMetaTable.exp_start_datetime)
+        .where(and_(
+            L2ScienceMetaTable.astrometry_status.in_([0,1]),
+            L2ScienceMetaTable.exp_start_datetime.is_not(None),
+            L2ScienceMetaTable.exp_start_datetime > (datetime.now() - query_time_delta)
+        ))
+        .order_by(L2ScienceMetaTable.exp_start_datetime.desc())
+        .limit(1)
+    ).scalar()
+
+    selected_pks = []
+    last_time = last_astrometry_time  # may be None
+    for filename, reprocess_number, exp_start_dt in pk_rows:
+        if last_time is None or exp_start_dt > last_time + astrometry_time_delta:
+            selected_pks.append((filename, reprocess_number))
+            last_time = exp_start_dt
+
+    astrometry_should_run = tuple_(
+        L2ScienceMetaTable.filename,
+        L2ScienceMetaTable.reprocess_number,
+    ).in_(selected_pks)
+
+    return (astrometry_should_run, 0)
 
 def generate_message_dict_from_metadata_table(metadata_table_class, monitor_name):
     """
