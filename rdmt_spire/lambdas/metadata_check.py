@@ -3,7 +3,7 @@ import json
 import logging
 
 import boto3
-from sqlalchemy import case, inspect as sa_inspect, or_, and_, tuple_, select, update, is_not
+from sqlalchemy import case, inspect as sa_inspect, or_, and_, tuple_, select, update
 from sqlalchemy.orm import Session
 
 from ..constants.codes import StatusCodes
@@ -70,7 +70,8 @@ def metadata_check_function(message_dict, aws_account_id):
         *[getattr(L2ScienceMetaTable, col) == -2 for col in metadata_check_status_columns]
     )
 
-    with sql_engine.connect() as session:
+    with Session(sql_engine) as session:
+        logger.info("Querying database for new rows to check ...")
         pk_rows = session.execute(
             select(
                 L2ScienceMetaTable.filename,
@@ -86,32 +87,37 @@ def metadata_check_function(message_dict, aws_account_id):
                 "statusCode": StatusCodes.SUCCESS,
                 "body": [{"message": "No rows found with any *_status == -2. No messages sent to SQS."}],
             }
+        
+        logger.info(f"Found {len(pk_rows)} rows with any *_status == -2.")
 
+        logger.info("Defining selection rules for metadata checks ...")
         # Define the selection rules for each metadata check type. Each rule consists of a SQLAlchemy query
         rules = {}
-
         # astrometry should run every hour, so query to find last time it ran and find any occurrences that need to be run.
+        logger.info("Defining selection rule for astrometry ...")
         astrometry_rule = every_other_astrometry_rule(pk_rows)
         # TODO: test once we have more data spread across time
         #astrometry_rule = time_based_astrometry_rule(session, pk_rows)
         rules['astrometry_status'] = astrometry_rule
 
-
+        logger.info("Defining selection rule for test_reject ...")
         # test_reject_status is purely for testing and should run on every file that has it set to -2
-        test_reject_rule = (L2ScienceMetaTable.test_reject_status == -2, 0)
-
+        test_reject_rule = [(L2ScienceMetaTable.test_reject_status == -2, -1)]
         rules['test_reject_status'] = test_reject_rule
 
+        # Validate the rules to ensure they are in the correct format (tuple or list of tuples)
+        logger.info("Validating selection rules and building sql statement ...")
+        rule_statements = {}
         for col, rule in rules.items():
-            if isinstance(rule, tuple) and len(rule) == 2:
-                continue  # valid single rule
-            elif isinstance(rule, list) and all(isinstance(r, tuple) and len(r) == 2 for r in rule):
-                continue  # valid list of rules
+            if isinstance(rule, list) and all(isinstance(r, tuple) and len(r) == 2 for r in rule):
+                rule_statements[col] = case(*rule, else_=-1)
             else:
                 raise ValueError(f"Invalid rule format for {col}: {rule}. Must be a tuple or list of tuples.")
-
+            
+            
         # Update the rows that match the selection rules to 0 and set all other rows to -1
-        pk_values = [(filename, reprocess_number) for filename, reprocess_number, _ in pk_rows]
+        logger.info("Updating rows in the database based on selection rules ...")
+        pk_values = [(row.filename, row.reprocess_number) for row in pk_rows]
 
         stmt = (
             update(L2ScienceMetaTable)
@@ -121,10 +127,7 @@ def metadata_check_function(message_dict, aws_account_id):
                     L2ScienceMetaTable.reprocess_number,
                 ).in_(pk_values)
             )
-            .values({
-                col_name: case(*cases, else_=-1)
-                for col_name, cases in rules.items()
-            })
+            .values(rule_statements)
             .execution_options(synchronize_session=False)
         )
 
@@ -133,13 +136,16 @@ def metadata_check_function(message_dict, aws_account_id):
 
 
         # Loop over rows that have had a _status set to 0 and send a message to the appropriate SQS queue for each row.
+        logger.info("Querying database for rows that have been updated to *_status == 0 ...")
         updated_rows = session.execute(
             select(L2ScienceMetaTable).where(
-                tuple_(
-                    L2ScienceMetaTable.filename,
-                    L2ScienceMetaTable.reprocess_number,
-                ).in_(pk_values),
-                or_(*[getattr(L2ScienceMetaTable, col) == 0 for col in metadata_check_status_columns]),
+                and_(
+                    tuple_(
+                        L2ScienceMetaTable.filename,
+                        L2ScienceMetaTable.reprocess_number,
+                    ).in_(pk_values),
+                    or_(*[getattr(L2ScienceMetaTable, col) == 0 for col in metadata_check_status_columns])
+                )
             )
         ).scalars().all()
 
@@ -196,8 +202,9 @@ def every_other_astrometry_rule(pk_rows):
         - A SQLAlchemy boolean expression that evaluates to True for rows that should have astrometry monitoring run (i.e., every other row).
         - An integer (0) indicating the new status value for rows that should have astrometry monitoring run.
     """
+    indices = [(row.filename, row.reprocess_number) for row in pk_rows]
     selected_pks = []
-    for i, (filename, reprocess_number, _) in enumerate(pk_rows):
+    for i, (filename, reprocess_number) in enumerate(indices):
         if i % 2 == 0:  # Select every other row (even index)
             selected_pks.append((filename, reprocess_number))
 
@@ -206,8 +213,8 @@ def every_other_astrometry_rule(pk_rows):
         L2ScienceMetaTable.reprocess_number,
     ).in_(selected_pks)
 
-    return (astrometry_should_run, 0)
-
+    return [(astrometry_should_run, 0)]
+    
 def time_based_astrometry_rule(session, pk_rows):
     """
     Determine which rows should have astrometry monitoring run based on a time-based rule.
@@ -241,7 +248,8 @@ def time_based_astrometry_rule(session, pk_rows):
 
     selected_pks = []
     last_time = last_astrometry_time  # may be None
-    for filename, reprocess_number, exp_start_dt in pk_rows:
+    indices = [(row.filename, row.reprocess_number, row.exp_start_datetime) for row in pk_rows]
+    for filename, reprocess_number, exp_start_dt in indices:
         if last_time is None or exp_start_dt > last_time + astrometry_time_delta:
             selected_pks.append((filename, reprocess_number))
             last_time = exp_start_dt
@@ -251,7 +259,7 @@ def time_based_astrometry_rule(session, pk_rows):
         L2ScienceMetaTable.reprocess_number,
     ).in_(selected_pks)
 
-    return (astrometry_should_run, 0)
+    return [(astrometry_should_run, 0)]
 
 def generate_message_dict_from_metadata_table(metadata_table_class, monitor_name):
     """

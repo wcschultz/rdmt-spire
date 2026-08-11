@@ -117,7 +117,7 @@ def ingest_single(message_dict, notification_datetime, aws_account_id):
             sqs_client=sqs_client
         )
         logger.info('Ingesting L2 science file.')
-        message_dict[MessageKeys.MONITOR_NAME] = 'noise_1f' # TODO: replace with 'essential'
+        message_dict[MessageKeys.MONITOR_NAME] = 'essential'
 
     elif message_dict[MessageKeys.FILE_TYPE] == FileTypes.L1_GUIDE_WINDOW:
         message_sqs_url = get_sqs_url(

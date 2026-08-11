@@ -53,12 +53,12 @@ class MonitorManager:
 
         if monitor_name == "essential":
             monitor_noise_1f = import_module("rdmt_spire.monitors.noise_1f")
-            monitor_pixel = import_module("rdmt_spire.monitors.pixel_statistics")
+            monitor_pixel = import_module("rdmt_spire.monitors.pixel")
             self.monitor_objects.append(
                 monitor_noise_1f.Noise1fMonitor(self.asdf_file)
             )
             self.monitor_objects.append(
-                monitor_pixel.PixelStatisticsMonitor(self.asdf_file)
+                monitor_pixel.PixelMonitor(self.asdf_file)
             )
         elif monitor_name == "noise_1f":
             monitor_noise_1f = import_module("rdmt_spire.monitors.noise_1f")
@@ -84,10 +84,10 @@ class MonitorManager:
                 monitor_guide_window.GuideWindowMonitor(self.asdf_file)
             )
 
-        elif monitor_name == "pixel_statistics":
-            monitor_pixel_statistics = import_module("rdmt_spire.monitors.pixel_statistics")
+        elif monitor_name == "pixel":
+            monitor_pixel = import_module("rdmt_spire.monitors.pixel")
             self.monitor_objects.append(
-                monitor_pixel_statistics.PixelStatisticsMonitor(self.asdf_file)
+                monitor_pixel.PixelMonitor(self.asdf_file)
             )
 
         elif monitor_name == "base_monitor":

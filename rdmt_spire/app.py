@@ -48,6 +48,13 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
                     return ingest_single(message_dict, notification_datetime, aws_account_id)
                 elif body[MessageKeys.FUNCTION_TYPE] == FunctionTypes.MONITOR:
                     return monitor_function(body)
+                else:
+                    return {
+                        'statusCode': StatusCodes.BAD_EVENT_FORMAT,
+                        'body': [{
+                            'error_message':'Unsupported function type specified in the event with Records outer layer. Please check implementation.'
+                        }]
+                    }
             else:
                 function_type_checks = [MessageKeys.FUNCTION_TYPE in json.loads(rec['body']['Message']).keys() for rec in event['Records']]
 
