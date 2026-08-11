@@ -40,7 +40,7 @@ class L2ScienceMetaTable(Base):
 
     # Information that requires opening the file to extract
     observation_id:         Mapped[Optional[str]] = mapped_column(String(OBSERVATION_ID_LENGTH)) # from meta.observation.observation_id
-    exp_start_datetime:     Mapped[Optional[datetime]] = mapped_column(DateTime()) # from meta.exposure.start_time
+    exp_start_datetime:     Mapped[Optional[datetime]] = mapped_column(DateTime(), index=True) # from meta.exposure.start_time
     romancal_version:       Mapped[Optional[str]] = mapped_column(String(SOFTWARE_VERSION_LENGTH)) # from meta.calibration_software_version
     crds_context:           Mapped[Optional[str]] = mapped_column(String(SOFTWARE_VERSION_LENGTH)) # from meta.ref_file.crds.context
     sdf_version:            Mapped[Optional[str]] = mapped_column(String(SOFTWARE_VERSION_LENGTH)) # from meta.sdf_software_version
@@ -55,6 +55,8 @@ class L2ScienceMetaTable(Base):
     essential_status:       Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
     # periodic monitors are run on a schedule and may not be run for every file. The status is set to -1 if the monitor should not be run for this file.   
     astrometry_status:      Mapped[int] = mapped_column(Integer(), default=-2) # populated by Spire
+    
+    test_reject_status:      Mapped[int] = mapped_column(Integer(), default=-2) # purely for testing!
 
     def _get_verification_columns(self):
         return [
