@@ -120,6 +120,8 @@ class PixelMonitor(BaseMonitor):
 
             results["DELTA_PLATE_SCALE_" + label] = sx - sy
 
+        logger.info("Successfully calculated plate scale metrics for all regions of the detector.")
+
         return results
 
 
@@ -159,6 +161,8 @@ class PixelMonitor(BaseMonitor):
             results["P95_RAMP_VALUE"] = np.nan
             results["P05_RAMP_VALUE"] = np.nan
 
+            logger.warning("No valid pixels found for ramp value metrics calculation. All pixels are either saturated, DO_NOT_USE, or non-finite.")
+
         else:
             results["MIN_RAMP_VALUE"] = np.nanmin(masked_im)
             results["MAX_RAMP_VALUE"] = np.nanmax(masked_im)
@@ -168,6 +172,8 @@ class PixelMonitor(BaseMonitor):
             results["P95_RAMP_VALUE"] = np.nanpercentile(masked_im, 95)
             results["P05_RAMP_VALUE"] = np.nanpercentile(masked_im, 5)
 
+            logger.info("Successfully calculated ramp value metrics for the detector.")
+            
         return results
 
 
