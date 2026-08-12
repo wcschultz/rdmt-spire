@@ -1,9 +1,10 @@
-from datetime import timedelta, datetime
 import json
 import logging
+from datetime import datetime, timedelta
 
 import boto3
-from sqlalchemy import case, inspect as sa_inspect, or_, and_, tuple_, select, update
+from sqlalchemy import and_, case, or_, select, tuple_, update
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session
 
 from ..constants.codes import StatusCodes
@@ -26,30 +27,25 @@ logger.setLevel(logging.INFO)
 
 def metadata_check_function(message_dict, aws_account_id):
     """
-    Run a metadata check and enqueue monitor messages to SQS based on the
-    requested check type (currently supports ``'astrometry'`` only).
+    Evaluate pending metadata checks and enqueue monitor messages.
 
-    This function inspects metadata records that require monitoring, identified
-    via database queries, and sends a message per record to the appropriate SQS
-    queue. It returns an API-like response indicating success or a
-    not-yet-implemented status for unsupported check types.
+    The function scans ``L2ScienceMetaTable`` for rows with status values of
+    ``-2`` (pending), applies per-monitor selection rules, updates status
+    columns to ``0`` (selected) or ``-1`` (not selected), and sends one SQS
+    message per selected astrometry row.
 
     Parameters
     ----------
     message_dict : dict
-        Input payload containing routing/configuration fields. Must include
-        ``MessageKeys.METADATA_CHECK_TYPE`` with a string value identifying the
-        check type to run (e.g., ``'astrometry'``).
+        Lambda payload. Currently unused, but retained for handler interface
+        compatibility.
     aws_account_id : str
         AWS account ID used to resolve SQS queue URLs.
 
     Returns
     -------
     dict
-        A response object with:
-        - ``'statusCode'`` : int
-        - ``'body'`` : list of dict
-            A list with a message on success or an error message when not implemented.
+        API-style response containing ``statusCode`` and a ``body`` message.
 
     """
 
@@ -61,7 +57,6 @@ def metadata_check_function(message_dict, aws_account_id):
 
     metadata_check_status_columns = [
         "astrometry_status",
-        "test_reject_status",  # purely for testing!
     ]
 
     logger.info(f"Running Metadata check for columns: {', '.join(metadata_check_status_columns)}")
@@ -69,7 +64,7 @@ def metadata_check_function(message_dict, aws_account_id):
     logger.info('Connecting to the database...')
     sql_engine = connect_to_db(database_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])
 
-    # Query the database for all *_status columns in metadata_check_status_columns that are set to -2 which indicates they may need to be run. Return all rows. If there are other _status columns that are set to -2, raise a ValueError.
+    # Fetch all rows that have any pending monitor status (-2).
     with Session(sql_engine) as session:
         logger.info("Querying database for new rows to check ...")
         all_min2_statuses = or_(
@@ -113,21 +108,15 @@ def metadata_check_function(message_dict, aws_account_id):
         logger.info(f"Found {len(pk_rows)} rows with any *_status == -2.")
 
         logger.info("Defining selection rules for metadata checks ...")
-        # Define the selection rules for each metadata check type. Each rule consists of a SQLAlchemy query
+        # Each rule maps SQLAlchemy conditions to target status values.
         rules = {}
-        # astrometry should run every hour, so query to find last time it ran and find any occurrences that need to be run.
         logger.info("Defining selection rule for astrometry ...")
         astrometry_rule = every_other_astrometry_rule(pk_rows)
         # TODO: test once we have more data spread across time
-        #astrometry_rule = time_based_astrometry_rule(session, pk_rows)
+        # astrometry_rule = time_based_astrometry_rule(session, pk_rows)
         rules['astrometry_status'] = astrometry_rule
 
-        logger.info("Defining selection rule for test_reject ...")
-        # test_reject_status is purely for testing and should run on every file that has it set to -2
-        test_reject_rule = [(L2ScienceMetaTable.test_reject_status == -2, -1)]
-        rules['test_reject_status'] = test_reject_rule
-
-        # Validate the rules to ensure they are in the correct format (tuple or list of tuples)
+        # Build CASE statements from validated rule tuples.
         logger.info("Validating selection rules and building sql statement ...")
         rule_statements = {}
         for col, rule in rules.items():
@@ -136,8 +125,7 @@ def metadata_check_function(message_dict, aws_account_id):
             else:
                 raise ValueError(f"Invalid rule format for {col}: {rule}. Must be a tuple or list of tuples.")
             
-            
-        # Update the rows that match the selection rules to 0 and set all other rows to -1
+        # Apply rule-based status updates to the pending rows.
         logger.info("Updating rows in the database based on selection rules ...")
         pk_values = [(row.filename, row.reprocess_number) for row in pk_rows]
 
@@ -156,8 +144,7 @@ def metadata_check_function(message_dict, aws_account_id):
         session.execute(stmt)
         session.commit()
 
-
-        # Loop over rows that have had a _status set to 0 and send a message to the appropriate SQS queue for each row.
+        # Reload rows selected for at least one metadata check.
         logger.info("Querying database for rows that have been updated to *_status == 0 ...")
         updated_rows = session.execute(
             select(L2ScienceMetaTable).where(
@@ -188,7 +175,6 @@ def metadata_check_function(message_dict, aws_account_id):
         for row in astrometry_rows:
             monitor_dict = generate_message_dict_from_metadata_table(row, 'astrometry')
             try:
-                # Send the message to the queue associated with this key.
                 response = sqs.send_message(
                     QueueUrl=astrometry_queue,
                     MessageBody=json.dumps(monitor_dict)
@@ -199,10 +185,6 @@ def metadata_check_function(message_dict, aws_account_id):
                 # TODO: how do we want to handle this error correctly?
                 raise e
 
-    test_reject_rows = [row for row in updated_rows if row.test_reject_status == 0]
-    if test_reject_rows:
-        raise NotImplementedError("test_reject_status is purely for testing and should not be used in production.")
-
     logger.info('Successfully sent all messages. Metadata check complete,')
 
     return {'statusCode': StatusCodes.SUCCESS,
@@ -210,19 +192,18 @@ def metadata_check_function(message_dict, aws_account_id):
 
 def every_other_astrometry_rule(pk_rows):
     """
-    Determine which rows should have astrometry monitoring run based on a rule that selects every other row.
+    Select every other pending row for astrometry execution.
 
     Parameters
     ----------
     pk_rows : list of tuples
-        A list of tuples containing at least (filename, reprocess_number, exp_start_datetime) for each row that has astrometry_status == -2.
+        Rows that contain at least ``filename`` and ``reprocess_number``.
 
     Returns
     -------
-    tuple
-        A tuple containing:
-        - A SQLAlchemy boolean expression that evaluates to True for rows that should have astrometry monitoring run (i.e., every other row).
-        - An integer (0) indicating the new status value for rows that should have astrometry monitoring run.
+    list[tuple]
+        Rule tuples consumable by ``sqlalchemy.case`` in the form
+        ``[(condition, status_value)]``.
     """
     indices = [(row.filename, row.reprocess_number) for row in pk_rows]
     selected_pks = []
@@ -239,24 +220,25 @@ def every_other_astrometry_rule(pk_rows):
     
 def time_based_astrometry_rule(session, pk_rows):
     """
-    Determine which rows should have astrometry monitoring run based on a time-based rule.
+    Select rows spaced by at least one hour from the last selected run time.
     
     Parameters
     ----------
     session : sqlalchemy.orm.Session
         An active SQLAlchemy session used to query the database.
     pk_rows : list of tuples
-        A list of tuples containing at least (filename, reprocess_number, exp_start_datetime) for each row that has astrometry_status == -2.
+        Rows that contain at least ``filename``, ``reprocess_number``, and
+        ``exp_start_datetime``.
 
     Returns
     -------
-    tuple
-        A tuple containing:
-        - A SQLAlchemy boolean expression that evaluates to True for rows that should have astrometry monitoring run (i.e., those that are more than 1 hour after the last row that had astrometry monitoring run).
-        - An integer (0) indicating the new status value for rows that should have astrometry monitoring run.
+    list[tuple]
+        Rule tuples consumable by ``sqlalchemy.case`` in the form
+        ``[(condition, status_value)]``.
     """
     astrometry_time_delta = timedelta(hours=1)
-    query_time_delta = timedelta(days=30) # only check the last 30 days of data for astrometry
+    # Limit lookback for prior astrometry activity when computing cadence.
+    query_time_delta = timedelta(days=30)
     last_astrometry_time = session.execute(
         select(L2ScienceMetaTable.exp_start_datetime)
         .where(and_(
@@ -269,7 +251,7 @@ def time_based_astrometry_rule(session, pk_rows):
     ).scalar()
 
     selected_pks = []
-    last_time = last_astrometry_time  # may be None
+    last_time = last_astrometry_time
     indices = [(row.filename, row.reprocess_number, row.exp_start_datetime) for row in pk_rows]
     for filename, reprocess_number, exp_start_dt in indices:
         if last_time is None or exp_start_dt > last_time + astrometry_time_delta:
@@ -285,20 +267,19 @@ def time_based_astrometry_rule(session, pk_rows):
 
 def generate_message_dict_from_metadata_table(metadata_table_class, monitor_name):
     """
-    Generate a message dictionary using the metadata table attributes for the monitor lambda.
+    Build a monitor payload from a metadata ORM row.
 
     Parameters
     ----------
     metadata_table_class : SQLAlchemy table class
-        Like L2ScienceMetaTable
+        ORM row object compatible with ``L2ScienceMetaTable`` fields.
     monitor_name : str
         The name of the monitor associated with this message.
 
     Returns
     -------
     dict
-        A dictionary containing message fields populated from the metadata table
-        and monitor information. 
+        Message payload consumed by monitor lambdas.
 
     """
     monitor_dict = {

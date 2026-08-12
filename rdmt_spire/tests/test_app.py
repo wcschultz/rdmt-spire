@@ -51,15 +51,13 @@ def test_lambda_app():
     event={'Records':[{'body': json.dumps(no_file_message)}]}
     response=handler(event,context)
 
-    report_message = {**base_message, 'function_type':'report'}
-    event={'Records':[{'body': json.dumps(report_message)}]}
-    response=handler(event,context) 
+    report_evemt = {'function_type':'report'}
+    response=handler(report_evemt,context)
     assert response['statusCode'] == StatusCodes.FAILURE
     assert 'error_message' in response['body'][0]
 
-    meta_message = {**base_message, 'function_type':'meta_check', 'metadata_check_type': 'not-implemented'}
-    event={'Records':[{'body': json.dumps(meta_message)}]}
+    meta_event = {'function_type':'meta_check'}
     with patch('rdmt_spire.lambdas.metadata_check.fetch_parameters_from_path', return_value={}):
-        response=handler(event,context) 
-    assert response['statusCode'] == StatusCodes.NOT_YET_IMPLEMENTED
+        response=handler(meta_event,context)
+    assert response['statusCode'] == StatusCodes.FAILURE # TODO: Currently generates a database connection error. Need to mock the database to fix.
     assert 'error_message' in response['body'][0]

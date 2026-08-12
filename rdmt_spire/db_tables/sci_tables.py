@@ -55,8 +55,6 @@ class L2ScienceMetaTable(Base):
     essential_status:       Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
     # periodic monitors are run on a schedule and may not be run for every file. The status is set to -1 if the monitor should not be run for this file.   
     astrometry_status:      Mapped[int] = mapped_column(Integer(), default=-2) # populated by Spire
-    
-    test_reject_status:      Mapped[int] = mapped_column(Integer(), default=-2) # purely for testing!
 
     def _get_verification_columns(self):
         return [
