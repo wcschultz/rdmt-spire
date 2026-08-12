@@ -55,6 +55,10 @@ def metadata_check_function(message_dict, aws_account_id):
 
     params = fetch_parameters_from_path(AWS_PARAMETER_PATH, expected_parameters=AWS_MONITOR_QUEUES + AWS_DBS)
 
+    all_status_columns = [
+        column.key for column in sa_inspect(L2ScienceMetaTable).columns if column.key.endswith("_status")
+    ]
+
     metadata_check_status_columns = [
         "astrometry_status",
         "test_reject_status",  # purely for testing!
@@ -66,20 +70,38 @@ def metadata_check_function(message_dict, aws_account_id):
     sql_engine = connect_to_db(database_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])
 
     # Query the database for all *_status columns in metadata_check_status_columns that are set to -2 which indicates they may need to be run. Return all rows. If there are other _status columns that are set to -2, raise a ValueError.
-    key_predicate = and_(
-        *[getattr(L2ScienceMetaTable, col) == -2 for col in metadata_check_status_columns]
-    )
-
     with Session(sql_engine) as session:
         logger.info("Querying database for new rows to check ...")
+        all_min2_statuses = or_(
+            *[getattr(L2ScienceMetaTable, col) == -2 for col in all_status_columns]
+        )
+        ids_and_status_columns = [
+            L2ScienceMetaTable.filename,
+            L2ScienceMetaTable.reprocess_number,
+            L2ScienceMetaTable.exp_start_datetime,
+            *[getattr(L2ScienceMetaTable, col) for col in all_status_columns],
+        ]
         pk_rows = session.execute(
-            select(
-                L2ScienceMetaTable.filename,
-                L2ScienceMetaTable.reprocess_number,
-                L2ScienceMetaTable.exp_start_datetime,
-            ).where(key_predicate)
+            select(*ids_and_status_columns).where(all_min2_statuses)
             .order_by(L2ScienceMetaTable.exp_start_datetime.asc())
         ).all()
+
+        non_metadata_check_status_columns = [
+            col for col in all_status_columns if col not in metadata_check_status_columns
+        ]
+        if non_metadata_check_status_columns and any(
+            getattr(row, col) == -2 for row in pk_rows for col in non_metadata_check_status_columns
+        ):
+            bad_columns = []
+            for row in pk_rows:
+                for col in non_metadata_check_status_columns:
+                    if getattr(row, col) == -2:
+                        logger.error(f"Row with filename={row.filename}, reprocess_number={row.reprocess_number} has {col} == -2, which is not supported for metadata checks.")
+                        bad_columns.append(col)
+            raise ValueError(
+                "Found rows with -2 in unsupported status columns: "
+                f"{', '.join(set(bad_columns))}"
+            )
 
         if not pk_rows:
             logger.info("No rows found with any *_status == -2. No messages will be sent to SQS.")
