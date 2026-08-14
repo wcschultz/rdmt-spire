@@ -262,9 +262,6 @@ class L2ScienceResultsTable(ResultsBase):
 
         return cols
     
-    def get_metric_eval_pairs(self):
-        eval_column_names = [column.name for column in self.__table__.columns if "_eval" in column.name]
-        metric_column_names = [eval_name.removesuffix('_eval') for eval_name in eval_column_names]
 
     # Used for mapping the table classes to the file types they relate to
     file_type = FileTypes.L2_SCIENCE
