@@ -51,8 +51,8 @@ def test_lambda_app():
     event={'Records':[{'body': json.dumps(no_file_message)}]}
     response=handler(event,context)
 
-    report_evemt = {'function_type':'report'}
-    response=handler(report_evemt,context)
+    report_event = {'function_type':'report'}
+    response=handler(report_event,context)
     assert response['statusCode'] == StatusCodes.FAILURE
     assert 'error_message' in response['body'][0]
 

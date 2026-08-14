@@ -84,7 +84,7 @@ def test_pixel_statistics_valid_input():
     assert len(data_cards) == 23
 
     # Checking plate scale calculations
-    ps_data_card = monitor.get_data_card("PLATE_SCALE_CENTER_X")
+    ps_data_card = monitor.get_data_card("plate_scale_center_x")
 
     assert ps_data_card.data_name.upper() == "PLATE_SCALE_CENTER_X"
     assert ps_data_card.data_unit == "arcsec/pixel"
@@ -92,7 +92,7 @@ def test_pixel_statistics_valid_input():
     assert np.isfinite(ps_data_card.data_value)
 
     # Checking delta plate scale calculations
-    delta_ps_data_card = monitor.get_data_card("DELTA_PLATE_SCALE_CORNER_BL")
+    delta_ps_data_card = monitor.get_data_card("delta_plate_scale_corner_bl")
     
     assert delta_ps_data_card.data_name.upper() == "DELTA_PLATE_SCALE_CORNER_BL"
     assert delta_ps_data_card.data_unit == "arcsec/pixel"
@@ -100,7 +100,7 @@ def test_pixel_statistics_valid_input():
     assert np.isfinite(delta_ps_data_card.data_value)
 
     # Checking ramp value calculations
-    ramp_val_data_card = monitor.get_data_card("MIN_RAMP_VALUE")
+    ramp_val_data_card = monitor.get_data_card("min_ramp_value")
         
     assert ramp_val_data_card.data_name.upper() == "MIN_RAMP_VALUE"
     assert ramp_val_data_card.data_unit == "DN/s"
@@ -108,7 +108,7 @@ def test_pixel_statistics_valid_input():
     assert np.isfinite(ramp_val_data_card.data_value)
 
     # Checking number of saturated pixels
-    nsat_data_card = monitor.get_data_card("N_SATURATED_PIX")
+    nsat_data_card = monitor.get_data_card("n_saturated_pix")
             
     assert nsat_data_card.data_name.upper() == "N_SATURATED_PIX"
     assert nsat_data_card.data_unit == "pixels"
