@@ -15,11 +15,11 @@ from ..constants.database import (
     VISIT_ID_LENGTH,
 )
 from ..constants.dmd import FileTypes
-from .base import Base, ResultsBase
 from ..constants.source_catalog_constants import (
     SOURCE_CATALOG_PROPERTIES,
     SOURCE_CATALOG_STATISTICS,
 )
+from .base import Base, ResultsBase
 
 
 class L2ScienceMetaTable(Base):
