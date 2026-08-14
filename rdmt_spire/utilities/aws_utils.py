@@ -6,6 +6,7 @@ import boto3
 import numpy as np
 from botocore.exceptions import (
     ClientError,
+    NoCredentialsError,
     ParamValidationError,
 )
 
@@ -237,7 +238,7 @@ def get_sqs_url(queue_name, account_id=None, sqs_client=None):
     return response['QueueUrl']
 
 def load_file_object(bucket_name: str, key_name: str, mode: str = "rb"):
-    """Load a file form a local filesystem or from an S3 bucket on AWS.
+    """Load a file from a local filesystem or from an S3 bucket on AWS.
 
     Parameters
     ----------
@@ -268,7 +269,7 @@ def load_file_object(bucket_name: str, key_name: str, mode: str = "rb"):
         else:
             # on AWS but S3 couldn't find or serve the object 
             raise FileNotFoundError(f"File not found in S3: s3://{bucket_name}/{key_name}")
-    except (ParamValidationError):
+    except (ParamValidationError, NoCredentialsError):
         # Seems like local path beginning with slash— fall back to local filesystem
         local_path = os.path.join(bucket_name, key_name)
         if os.path.exists(local_path):
@@ -306,6 +307,6 @@ def file_exists(bucket_name: str, key_name: str):
         else:
             # S3 is reachable — resource or bucket simply does not exist
             return False
-    except (ParamValidationError):
+    except (ParamValidationError, NoCredentialsError):
         # Seems like local path beginning with slash— fall back to local filesystem
         return os.path.exists(local_path)
