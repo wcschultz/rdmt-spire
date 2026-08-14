@@ -54,17 +54,20 @@ class PixelMonitor(BaseMonitor):
         # Merged dict with plate scale + ramp stats stored
         metrics_dict = self.calculate_plate_scales() | self.calculate_ramp_values()
 
-        for metric, val in metrics_dict.items():
-            if "PLATE_SCALE" in metric:
+        for metric_name, val in metrics_dict.items():
+            # define data_name as lowercase version of metric_name to match the data dictionary keys
+            data_name = metric_name.lower()
+            
+            if "PLATE_SCALE" in metric_name:
                 unit = "arcsec/pixel"
 
-            elif "RAMP_VALUE" in metric:
+            elif "RAMP_VALUE" in metric_name:
                 unit = "DN/s"
 
             else:
                 unit = "pixels"
 
-            self.append_data(metric, val, unit)
+            self.append_data(data_name, val, unit)
 
 
     def evaluate_metrics(self):
@@ -72,18 +75,20 @@ class PixelMonitor(BaseMonitor):
         Evaluate computed metrics against monitor acceptance thresholds.
         """
         for metric_name in PIXEL_STATISTICS_METRIC_NAMES:
+            # define data_name as lowercase version of metric_name to match the data dictionary keys
+            data_name = metric_name.lower()
             # Only a subset of the metrics are being actually evaluated
             if metric_name in PLATE_SCALE_THRESHOLDS:
                 if "DELTA" in metric_name:
-                    passed = abs(self.get_data(metric_name)) <= PLATE_SCALE_THRESHOLDS[metric_name]
+                    passed = abs(self.get_data(data_name)) <= PLATE_SCALE_THRESHOLDS[metric_name]
                 else:
-                    passed = self.get_data(metric_name) >= PLATE_SCALE_THRESHOLDS[metric_name]
+                    passed = self.get_data(data_name) >= PLATE_SCALE_THRESHOLDS[metric_name]
 
             # If not defined in the constants file, then it's just being set to True to check trending
             else:
                 passed = True
 
-            self.add_evaluation(metric_name, passed)
+            self.add_evaluation(data_name, passed)
 
 
     def calculate_plate_scales(self, step=1.0):

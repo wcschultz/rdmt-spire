@@ -50,25 +50,54 @@ class BaseMonitor(ABC):
         if not isinstance(self.asdf_file, asdf.AsdfFile):
             raise RuntimeError(f"{self.__class__.__name__}: failure, invalid input")
 
+    def _validate_data_name(
+        self,
+        data_name: str,
+        *,
+        allow_all: bool = False,
+        require_existing: bool = False,
+        require_new: bool = False,
+    ):
+        """Validate data_name input used by public data access/modification methods."""
+        if not isinstance(data_name, str) or not data_name:
+            raise ValueError(f"{self.__class__.__name__}: failure, data_name must be a non-empty string")
+
+        if not data_name.islower():
+            raise ValueError(f"{self.__class__.__name__}: failure, data_name must be lowercase")
+
+        if allow_all and data_name == 'all':
+            return
+
+        if require_existing and data_name not in self.data:
+            raise ValueError(f"No metric has been added with data_name={data_name}. Please check implementation.")
+
+        if require_new and data_name in self.data:
+            raise ValueError(f"A metric with data_name={data_name} already exists. Please check implementation.")
+
     def append_data(self, data_name: str, data_value: Any, data_unit: str, evaluation_value: bool = None):
         """
         Format and then append the data to be exported out of the monitor
         """
-        data_card = DataCard(
-            self.filename,
-            self.monitor_name,
-            data_name.lower(),
-            data_value,
-            data_unit,
-            evaluation_value
-        )
-        self.data[data_name.lower()] = data_card
+        self._validate_data_name(data_name, require_new=True)
+        if data_name in self.data:
+            raise ValueError(f"{self.__class__.__name__}: failure, data_name {data_name} already exists in data dictionary")
+        else:
+            data_card = DataCard(
+                self.filename,
+                self.monitor_name,
+                data_name,
+                data_value,
+                data_unit,
+                evaluation_value
+            )
+            self.data[data_name] = data_card
 
     def add_evaluation(self, data_name: str, eval_value: bool):
         """
         Add or modify the evaluation value of a given data card.
         """
-        self.data[data_name.lower()].evaluation_value = eval_value
+        self._validate_data_name(data_name, require_existing=True)
+        self.data[data_name].evaluation_value = eval_value
 
     @abstractmethod
     def calculate_metrics(self):
@@ -105,16 +134,15 @@ class BaseMonitor(ABC):
         Can be used to export individual data cards or all data cards in a list by using 
         'all' as the input name.
         """
+        self._validate_data_name(data_name, allow_all=True, require_existing=True)
+
         if data_name == 'all':
             if serialized:
                 return [asdict(item) for _, item in self.data.items()]
             else:
                 return list(self.data.values())
         else:
-            try:
-                data_card = self.data[data_name.lower()]
-            except KeyError: # TODO: figure out how to implement this better to actually pass the error message to Lambda and handle this better.
-                raise ValueError(f'No metric has been added with data_name={data_name}. Please check implementation.')
+            data_card = self.data[data_name]
             if serialized:
                 return asdict(data_card)
             else:
@@ -124,7 +152,8 @@ class BaseMonitor(ABC):
         """
         Helper function to retrieve the value of a metric saved in a DataCard.
         """
-        return self.get_data_card(data_name.lower()).data_value
+        self._validate_data_name(data_name, require_existing=True, allow_all=True)
+        return self.get_data_card(data_name).data_value
 
     def is_valid_metric(self, metric_name: str, value: Any) -> bool:
         """

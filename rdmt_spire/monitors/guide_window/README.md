@@ -5,7 +5,6 @@ This monitor evaluates Roman FGS guide-window performance from the tracking prod
 The monitor writes a set of metrics into the output datacards and then evaluates each metric against thresholds defined in `rdmt_spire/constants/guide_window_constants.py`.
 
 ## Metrics Computed
-
 ### Acquisition and saturation
 - **acquisition_status**: String status describing whether guide-star acquisition succeeded.
 - **saturation_status**: String status describing whether the guide window is saturated.
