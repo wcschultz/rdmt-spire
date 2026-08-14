@@ -4,6 +4,11 @@ import asdf
 import numpy as np
 import pandas as pd
 import pytest
+from astropy.table import Table
+
+from ..constants.source_catalog_constants import (
+    SOURCE_CATALOG_PROPERTIES,
+)
 
 # from dotenv import dotenv_values
 from ..monitors.source_catalog import SourceCatalogMonitor
@@ -76,25 +81,17 @@ def test_source_catalog_monitor(tmp_path):
     monitor = SourceCatalogMonitor(af, datadir=datadir)
     monitor.run()
 
-    # 5. Load expected values from expected_photometric_properties.csv
-    expected_path = os.path.join(os.path.dirname(__file__), '..', 'monitors', 'source_catalog', 'data', 'expected_photometric_properties.csv')
-    expected_props = pd.read_csv(expected_path)
-    expected_props.columns = expected_props.columns.str.strip()
-    expected_props['filter'] = expected_props['filter'].astype(str).str.strip().str.lower()
-    expected_row = expected_props[expected_props['filter'] == 'f087']
-    assert not expected_row.empty
-
     # Define properties to calculate dynamically
-    properties = [
-        "sharpness",
-        "roundness1",
-        "ellipticity",
-        "flux_frac_radius_50",
-        "flux_ratio_aper01_aper02",
-        "flux_ratio_aper02_aper04",
-        "flux_ratio_aper04_aper08",
-        "flux_err_ratio_psf_theory"
-    ]
+    properties = SOURCE_CATALOG_PROPERTIES
+
+    # 5. Load expected values from expected_photometric_properties.ecsv
+    expected_path = os.path.join(os.path.dirname(__file__), '..', 'monitors', 'source_catalog', 'data', 'expected_photometric_properties.ecsv')
+    expected_props = Table.read(expected_path, format="ascii.ecsv").to_pandas()
+    for prop in properties:
+        for metric in ['median', 'dispersion_p68']:
+            for filter in ['f062', 'f087','f106', 'f129', 'f146', 'f158', 'f184', 'f213']:
+                assert f"{prop}_{metric}_{filter}" in expected_props['property_name'].values
+
 
     # Pre-calculated values for the 4 sources corresponding to the generated mock data
     source_properties = {
@@ -108,29 +105,29 @@ def test_source_catalog_monitor(tmp_path):
         "flux_err_ratio_psf_theory": [2.0, 3.0, 4.0, 6.0]
     }
 
-    # Verify counts
-    assert monitor.get_data("num_sources_bright") == 2
-    assert monitor.get_data("num_sources_faint") == 2
 
     # Verify each computed property dynamically
     for prop in properties:
-        exp_val = float(expected_row[prop].values[0])
+        if prop.endswith("_bright"):
+            # Bright bin values are indices [0, 1]
+            vals = np.array(source_properties[prop.rstrip("_bright")][:2])
+        else:
+            # Faint bin values are indices [2, 3]
+            vals = np.array(source_properties[prop.rstrip("_faint")][2:])
 
-        # Bright bin values are indices [0, 1]
-        bright_vals = np.array(source_properties[prop][:2])
-        # Faint bin values are indices [2, 3]
-        faint_vals = np.array(source_properties[prop][2:])
-
-        for bin_name, vals in [("bright", bright_vals), ("faint", faint_vals)]:
-            expected_median = np.median(vals)
-            expected_rms = np.sqrt(np.mean((vals - exp_val) ** 2))
-            expected_nmad = 1.4826 * np.median(np.abs(vals - exp_val))
-
-            assert monitor.get_data(f"{prop}_{bin_name}_median") == pytest.approx(expected_median, rel=1e-3)
-            assert monitor.get_data(f"{prop}_{bin_name}_rms") == pytest.approx(expected_rms, rel=1e-3)
-            assert monitor.get_data(f"{prop}_{bin_name}_nmad") == pytest.approx(expected_nmad, rel=1e-3)
+        percentile_vals = np.percentile(vals, [2.275, 15.86, 50, 84.14, 97.725])
+        assert monitor.get_data(f"{prop}_n_sources") == 2
+        assert monitor.get_data(f"{prop}_median") == pytest.approx(percentile_vals[2], rel=1e-3)
+        assert monitor.get_data(f"{prop}_mean") == pytest.approx(np.mean(vals), rel=1e-3)
+        assert monitor.get_data(f"{prop}_std") == pytest.approx(np.std(vals), rel=1e-3)
+        assert monitor.get_data(f"{prop}_dispersion_p68") == pytest.approx((percentile_vals[3] - percentile_vals[1])/2.0, rel=1e-3)
+        assert monitor.get_data(f"{prop}_dispersion_p95") == pytest.approx((percentile_vals[4] - percentile_vals[0])/4.0, rel=1e-3)
 
     # Check all card evaluations are True
     data_cards = monitor.get_data_card('all')
     for card in data_cards:
-        assert card.evaluation_value is True
+        # only n_sources> 10 are set to True, others are False
+        if 'n_sources' in card.data_name: 
+            assert card.evaluation_value is False
+        else:
+            assert card.evaluation_value is True

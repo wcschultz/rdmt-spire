@@ -1,12 +1,16 @@
 import os
 
 import asdf
+import numpy as np
 import pandas as pd
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from ..constants.codes import StatusCodes
+from ..constants.source_catalog_constants import (
+    SOURCE_CATALOG_PROPERTIES,
+)
 from ..db_tables.sci_tables import L2ScienceResultsTable
 from ..manager import MonitorManager
 
@@ -72,6 +76,19 @@ def test_source_catalog_integration(tmp_path):
     L2ScienceResultsTable.__table__.create(bind=engine)
     session = session_local()
 
+    # Pre-calculated values for the 4 sources corresponding to the generated mock data
+    source_properties = {
+        "sharpness": [0.2, 0.4, 0.1, 0.3],
+        "roundness1": [-0.1, 0.3, -0.2, 0.4],
+        "ellipticity": [0.1, 0.3, 0.2, 0.4],
+        "flux_frac_radius_50": [0.5, 0.7, 0.4, 0.6],
+        "flux_ratio_aper01_aper02": [2.0, 3.0, 1.5, 2.5],
+        "flux_ratio_aper02_aper04": [1.5, 2.0, 1.5, 2.0],
+        "flux_ratio_aper04_aper08": [4.0/3.0, 2.0, 1.5, 2.0],
+        "flux_err_ratio_psf_theory": [2.0, 3.0, 4.0, 6.0]
+    }
+
+
     try:
         # 7. Archive the results
         reprocess_number = 0
@@ -80,12 +97,24 @@ def test_source_catalog_integration(tmp_path):
         # 8. Retrieve the stored row and assert values
         row = session.get(L2ScienceResultsTable, (filename, reprocess_number))
         assert row is not None
-        assert row.num_sources_bright == 2
-        assert row.num_sources_faint == 2
-        assert row.sharpness_bright_median == pytest.approx(0.3)
-        assert row.sharpness_bright_median_eval is True
-        assert row.sharpness_faint_median == pytest.approx(0.2)
-        assert row.sharpness_faint_median_eval is True
+        for prop in SOURCE_CATALOG_PROPERTIES:
+            if prop.endswith("_bright"):
+                # Bright bin values are indices [0, 1]
+                vals = np.array(source_properties[prop.rstrip("_bright")][:2])
+            else:
+                # Faint bin values are indices [2, 3]
+                vals = np.array(source_properties[prop.rstrip("_faint")][2:])
+
+            percentile_vals = np.percentile(vals, [2.275, 15.86, 50, 84.14, 97.725])
+            assert getattr(row, f"{prop}_n_sources") == 2
+            assert getattr(row, f"{prop}_median") == pytest.approx(percentile_vals[2], rel=1e-3)
+            assert getattr(row, f"{prop}_mean") == pytest.approx(np.mean(vals), rel=1e-3)
+            assert getattr(row, f"{prop}_std") == pytest.approx(np.std(vals), rel=1e-3)
+            assert getattr(row, f"{prop}_dispersion_p68") == pytest.approx((percentile_vals[3] - percentile_vals[1])/2.0, rel=1e-3)
+            assert getattr(row, f"{prop}_dispersion_p95") == pytest.approx((percentile_vals[4] - percentile_vals[0])/4.0, rel=1e-3)
+            assert not getattr(row, f"{prop}_n_sources_eval")
+            assert getattr(row, f"{prop}_median")
+            assert getattr(row, f"{prop}_mean")
 
         # 9. Verify database verification works
         # Check that comparing the row against itself passes

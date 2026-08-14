@@ -16,6 +16,10 @@ from ..constants.database import (
 )
 from ..constants.dmd import FileTypes
 from .base import Base, ResultsBase
+from ..constants.source_catalog_constants import (
+    SOURCE_CATALOG_PROPERTIES,
+    SOURCE_CATALOG_STATISTICS,
+)
 
 
 class L2ScienceMetaTable(Base):
@@ -91,6 +95,37 @@ class L2ScienceMetaTable(Base):
     file_type = FileTypes.L2_SCIENCE
 
 
+def _add_science_results_columns(cls):
+    # This function dynamically adds columns to the class 
+    # for science results based on the properties defined in monitors 
+
+    # We start with source_catalog monitor properties 
+    # One can add properties from other monitors if need be 
+    properties=SOURCE_CATALOG_PROPERTIES
+    statistics=SOURCE_CATALOG_STATISTICS
+
+    # we iterate over each property and each statistic
+    for prop in properties:
+        for stat_name in statistics:
+            if stat_name == "n_sources":
+                col_type = Integer()
+                py_type = Optional[int]
+            else:
+                col_type = Float()
+                py_type = Optional[float]
+
+            # Construct the column name and add it to the class annotations and mapped columns
+            name = f"{prop}_{stat_name}"
+            cls.__annotations__[name] = Mapped[py_type]
+            setattr(cls, name, mapped_column(col_type))
+
+            # Construct the evaluation column name and add it to the class annotations and mapped columns
+            cls.__annotations__[name+'_eval'] = Mapped[Optional[bool]]            
+            setattr(cls, name+'_eval', mapped_column(Boolean()))
+
+    return cls
+
+@_add_science_results_columns
 class L2ScienceResultsTable(ResultsBase):
     """Class containing schema for the L2 Science data monitoring results table."""
 
@@ -160,123 +195,7 @@ class L2ScienceResultsTable(ResultsBase):
     p95_ramp_value_eval:   Mapped[Optional[bool]]  = mapped_column(Boolean())
     p05_ramp_value:        Mapped[Optional[float]] = mapped_column(Float())
     p05_ramp_value_eval:   Mapped[Optional[bool]]  = mapped_column(Boolean())
-    # Source Catalog monitor results
-    num_sources_bright:         Mapped[Optional[int]] = mapped_column(Integer())
-    num_sources_bright_eval:    Mapped[Optional[bool]] = mapped_column(Boolean())
-    num_sources_faint:          Mapped[Optional[int]] = mapped_column(Integer())
-    num_sources_faint_eval:     Mapped[Optional[bool]] = mapped_column(Boolean())
-
-    # Sharpness
-    sharpness_bright_median:    Mapped[Optional[float]] = mapped_column(Float())
-    sharpness_bright_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    sharpness_bright_rms:       Mapped[Optional[float]] = mapped_column(Float())
-    sharpness_bright_rms_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-    sharpness_bright_nmad:      Mapped[Optional[float]] = mapped_column(Float())
-    sharpness_bright_nmad_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    sharpness_faint_median:     Mapped[Optional[float]] = mapped_column(Float())
-    sharpness_faint_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    sharpness_faint_rms:        Mapped[Optional[float]] = mapped_column(Float())
-    sharpness_faint_rms_eval:   Mapped[Optional[bool]] = mapped_column(Boolean())
-    sharpness_faint_nmad:       Mapped[Optional[float]] = mapped_column(Float())
-    sharpness_faint_nmad_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-
-    # Roundness1
-    roundness1_bright_median:   Mapped[Optional[float]] = mapped_column(Float())
-    roundness1_bright_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    roundness1_bright_rms:      Mapped[Optional[float]] = mapped_column(Float())
-    roundness1_bright_rms_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    roundness1_bright_nmad:     Mapped[Optional[float]] = mapped_column(Float())
-    roundness1_bright_nmad_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    roundness1_faint_median:    Mapped[Optional[float]] = mapped_column(Float())
-    roundness1_faint_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    roundness1_faint_rms:       Mapped[Optional[float]] = mapped_column(Float())
-    roundness1_faint_rms_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-    roundness1_faint_nmad:      Mapped[Optional[float]] = mapped_column(Float())
-    roundness1_faint_nmad_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-
-    # Ellipticity
-    ellipticity_bright_median:  Mapped[Optional[float]] = mapped_column(Float())
-    ellipticity_bright_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    ellipticity_bright_rms:     Mapped[Optional[float]] = mapped_column(Float())
-    ellipticity_bright_rms_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    ellipticity_bright_nmad:    Mapped[Optional[float]] = mapped_column(Float())
-    ellipticity_bright_nmad_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    ellipticity_faint_median:   Mapped[Optional[float]] = mapped_column(Float())
-    ellipticity_faint_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    ellipticity_faint_rms:      Mapped[Optional[float]] = mapped_column(Float())
-    ellipticity_faint_rms_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    ellipticity_faint_nmad:     Mapped[Optional[float]] = mapped_column(Float())
-    ellipticity_faint_nmad_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-
-    # Flux Fraction 50
-    flux_frac_radius_50_bright_median:    Mapped[Optional[float]] = mapped_column(Float())
-    flux_frac_radius_50_bright_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_frac_radius_50_bright_rms:       Mapped[Optional[float]] = mapped_column(Float())
-    flux_frac_radius_50_bright_rms_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_frac_radius_50_bright_nmad:      Mapped[Optional[float]] = mapped_column(Float())
-    flux_frac_radius_50_bright_nmad_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_frac_radius_50_faint_median:     Mapped[Optional[float]] = mapped_column(Float())
-    flux_frac_radius_50_faint_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_frac_radius_50_faint_rms:        Mapped[Optional[float]] = mapped_column(Float())
-    flux_frac_radius_50_faint_rms_eval:   Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_frac_radius_50_faint_nmad:       Mapped[Optional[float]] = mapped_column(Float())
-    flux_frac_radius_50_faint_nmad_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-
-    # Flux Ratio Aper01/Aper02
-    flux_ratio_aper01_aper02_bright_median:    Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper01_aper02_bright_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper01_aper02_bright_rms:       Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper01_aper02_bright_rms_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper01_aper02_bright_nmad:      Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper01_aper02_bright_nmad_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper01_aper02_faint_median:     Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper01_aper02_faint_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper01_aper02_faint_rms:        Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper01_aper02_faint_rms_eval:   Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper01_aper02_faint_nmad:       Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper01_aper02_faint_nmad_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-
-    # Flux Ratio Aper02/Aper04
-    flux_ratio_aper02_aper04_bright_median:    Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper02_aper04_bright_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper02_aper04_bright_rms:       Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper02_aper04_bright_rms_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper02_aper04_bright_nmad:      Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper02_aper04_bright_nmad_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper02_aper04_faint_median:     Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper02_aper04_faint_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper02_aper04_faint_rms:        Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper02_aper04_faint_rms_eval:   Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper02_aper04_faint_nmad:       Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper02_aper04_faint_nmad_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-
-    # Flux Ratio Aper04/Aper08
-    flux_ratio_aper04_aper08_bright_median:    Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper04_aper08_bright_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper04_aper08_bright_rms:       Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper04_aper08_bright_rms_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper04_aper08_bright_nmad:      Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper04_aper08_bright_nmad_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper04_aper08_faint_median:     Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper04_aper08_faint_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper04_aper08_faint_rms:        Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper04_aper08_faint_rms_eval:   Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_ratio_aper04_aper08_faint_nmad:       Mapped[Optional[float]] = mapped_column(Float())
-    flux_ratio_aper04_aper08_faint_nmad_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-
-    # Flux Error Ratio PSF/Theory
-    flux_err_ratio_psf_theory_bright_median:    Mapped[Optional[float]] = mapped_column(Float())
-    flux_err_ratio_psf_theory_bright_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_err_ratio_psf_theory_bright_rms:       Mapped[Optional[float]] = mapped_column(Float())
-    flux_err_ratio_psf_theory_bright_rms_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_err_ratio_psf_theory_bright_nmad:      Mapped[Optional[float]] = mapped_column(Float())
-    flux_err_ratio_psf_theory_bright_nmad_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_err_ratio_psf_theory_faint_median:     Mapped[Optional[float]] = mapped_column(Float())
-    flux_err_ratio_psf_theory_faint_median_eval: Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_err_ratio_psf_theory_faint_rms:        Mapped[Optional[float]] = mapped_column(Float())
-    flux_err_ratio_psf_theory_faint_rms_eval:   Mapped[Optional[bool]] = mapped_column(Boolean())
-    flux_err_ratio_psf_theory_faint_nmad:       Mapped[Optional[float]] = mapped_column(Float())
-    flux_err_ratio_psf_theory_faint_nmad_eval:  Mapped[Optional[bool]] = mapped_column(Boolean())
+    
 
     def _get_verification_columns(self):
         cols = [
@@ -335,23 +254,12 @@ class L2ScienceResultsTable(ResultsBase):
             "p05_ramp_value",
             "p05_ramp_value_eval",
         ]
-        ]
-        properties = [
-            "sharpness",
-            "roundness1",
-            "ellipticity",
-            "flux_frac_radius_50",
-            "flux_ratio_aper01_aper02",
-            "flux_ratio_aper02_aper04",
-            "flux_ratio_aper04_aper08",
-            "flux_err_ratio_psf_theory"
-        ]
-        cols.extend(["num_sources_bright", "num_sources_bright_eval", "num_sources_faint", "num_sources_faint_eval"])
-        for prop in properties:
-            for bin_name in ["bright", "faint"]:
-                for stat in ["median", "rms", "nmad"]:
-                    cols.append(f"{prop}_{bin_name}_{stat}")
-                    cols.append(f"{prop}_{bin_name}_{stat}_eval")
+
+        for prop in SOURCE_CATALOG_PROPERTIES:
+            for stat_name in SOURCE_CATALOG_STATISTICS:
+                cols.append(f"{prop}_{stat_name}")
+                cols.append(f"{prop}_{stat_name}_eval")
+
         return cols
     
     def get_metric_eval_pairs(self):

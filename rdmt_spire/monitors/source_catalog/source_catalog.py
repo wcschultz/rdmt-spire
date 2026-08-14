@@ -8,6 +8,10 @@ from astropy.table import Table
 
 from rdmt_spire.utilities import aws_utils
 
+from ...constants.source_catalog_constants import (
+    SOURCE_CATALOG_PROPERTIES,
+    SOURCE_CATALOG_STATISTICS,
+)
 from ..monitor_base import BaseMonitor
 
 logger = logging.getLogger(__name__)
@@ -31,6 +35,9 @@ class SourceCatalogMonitor(BaseMonitor):
         self.monitor_name = "source_catalog"
         self.datadir = datadir
         self.log.append(f"{self.monitor_name}: initialized")
+        # Define properties and statistics for the metrics
+        self.properties = SOURCE_CATALOG_PROPERTIES.copy()
+        self.statistics = SOURCE_CATALOG_STATISTICS.copy()
 
     def _load_data_file(self, filename: str) -> pd.DataFrame:
         """
@@ -46,25 +53,14 @@ class SourceCatalogMonitor(BaseMonitor):
         
         # clean up filter column to avoid mismatch caused by different naming conventions in files
         if 'filter' in df.columns:
-            df['filter'] = df['filter'].astype(str).str.strip().str.lower()
+            df['filter'] = df['filter'].str.strip().str.lower()
         return df
 
     def calculate_metrics(self):
         """
         Calculates source catalog metrics binned by magnitude.
-        Adds median, RMS, and NMAD metrics for 8 properties across bright and faint bins.
+        Adds median, STD, and NMAD metrics for 8 properties across bright and faint bins.
         """
-        # Define properties and statistics for the metrics
-        properties = [
-            "sharpness",
-            "roundness1",
-            "ellipticity",
-            "flux_frac_radius_50",
-            "flux_ratio_aper01_aper02",
-            "flux_ratio_aper02_aper04",
-            "flux_ratio_aper04_aper08",
-            "flux_err_ratio_psf_theory"
-        ]
 
         # Do we need a  Fallback logic for tests to return dummy values
         # if self.asdf_file.uri is None:
@@ -80,8 +76,7 @@ class SourceCatalogMonitor(BaseMonitor):
 
 
         # 3. Load calibration parameters
-        expected_props = self._load_data_file("expected_photometric_properties.csv")
-        zero_points = self._load_data_file("zero_points_20260401.csv")
+        zero_points = self._load_data_file("zero_points_20260401.ecsv")
         filter_params = self._load_data_file("filter_parameters.ecsv")
         thermal_bkg = self._load_data_file("internal_thermal_backgrounds.ecsv")
         zodiacal_light = self._load_data_file("zodiacal_light.ecsv")
@@ -99,14 +94,9 @@ class SourceCatalogMonitor(BaseMonitor):
         f_thermal = get_val(thermal_bkg, 'rate', optical_filter)
         f_min_zodi = get_val(zodiacal_light, 'rate', optical_filter)
 
-        # Expected values for each property for a given filter
-        expected_row = expected_props[expected_props['filter'] == optical_filter]
-        if expected_row.empty:
-            raise RuntimeError(f"SourceCatalogMonitor: filter '{optical_filter}' not found in expected properties table")
-        expected_properties = {key:expected_row[key].values[0] for key in properties}
 
         # 4. Construct parquet catalog file path and load it
-        file_object=aws_utils.load_file_object(self.datadir, filename.replace('_cal.asdf', '_cat.parquet'))
+        file_object = aws_utils.load_file_object(self.datadir, filename.replace('_cal.asdf', '_cat.parquet'))
         df = pd.read_parquet(file_object)
 
         # 5. Point source selection
@@ -117,34 +107,47 @@ class SourceCatalogMonitor(BaseMonitor):
         # 6. Calculate magnitude bin boundaries
         # Saturation mag: m_sat = Zp - 2.5 * log10(alpha_sat)
         # alpha_sat = c_sat / (f_peak * t_exp), where c_sat = 120,000
-        c_sat = 120000.0
-        alpha_sat = c_sat / (f_peak * t_exp)
-        m_sat = zp - 2.5 * np.log10(alpha_sat)
+        def saturation_limit_mag(c_sat, t_exp, zp, f_peak):
+            alpha_sat = c_sat / (f_peak * t_exp)
+            return zp - 2.5 * np.log10(alpha_sat)
+        m_sat = saturation_limit_mag(120000.0, t_exp, zp, f_peak)
 
         # Faint limit from SNR = 50 quadratic equation
-        snr = 50.0
-        snr2 = snr ** 2
-        f_bkgd = 2.0 * f_min_zodi + f_thermal
+        def faint_limit_mag(snr, t_exp, zp, n_eff, f_bkgd):
+            snr2 = snr ** 2
+            term_b = snr2 / t_exp
+            term_c = (snr2 * n_eff * f_bkgd) / t_exp
+            f_source_limit = (term_b + np.sqrt(term_b**2 + 4.0 * term_c)) / 2.0
+            m_faint = zp - 2.5 * np.log10(f_source_limit)
+            return m_faint
 
-        term_b = snr2 / t_exp
-        term_c = (snr2 * n_eff * f_bkgd) / t_exp
-        f_source_limit = (term_b + np.sqrt(term_b**2 + 4.0 * term_c)) / 2.0
-        m_faint = zp - 2.5 * np.log10(f_source_limit)
+        # Compute theoretical PSF flux error for each source
+        def psf_flux_error_theory(psf_flux, t_exp, zp, n_eff, f_bkgd):
+            kappa = 10**((31.4 - zp) / 2.5)
+            f_src = psf_flux / kappa
+            term_err = t_exp * (n_eff * f_bkgd + f_src)
+            term_err_clipped = np.clip(term_err, 0.0, None)
+            sigma_f = np.sqrt(term_err_clipped) / t_exp
+            psf_flux_err = sigma_f * kappa
+            psf_flux_err[psf_flux_err==0.0] = np.nan
+            return psf_flux_err
+
+        f_bkgd = 2.0 * f_min_zodi + f_thermal
+        m_faint = faint_limit_mag(50.0, t_exp, zp, n_eff, f_bkgd)
 
         m_mid = (m_sat + m_faint) / 2.0
 
         self.log.append(f"m_sat: {m_sat:.4f}, m_mid: {m_mid:.4f}, m_faint: {m_faint:.4f}")
 
         # 7. Subdivide sources
-        mab=-2.5*np.log10(df_pts['psf_flux'])+31.4
+        mab = -2.5 * np.log10(df_pts['psf_flux']) + 31.4
         cond_bright = (mab > m_sat) & (mab <= m_mid)
         cond_faint = (mab > m_mid) & (mab < m_faint)
 
-        self.append_data("num_sources_bright", np.sum(cond_bright), "")
-        self.append_data("num_sources_faint", np.sum(cond_faint), "")
+        # self.append_data("num_sources_bright", np.sum(cond_bright), "")
+        # self.append_data("num_sources_faint", np.sum(cond_faint), "")
 
         # 8. Compute property arrays helper
-        kappa = 10**((31.4 - zp) / 2.5)
 
         def compute_properties(df_sub):
             if df_sub.empty:
@@ -161,47 +164,111 @@ class SourceCatalogMonitor(BaseMonitor):
             props["flux_ratio_aper02_aper04"] = (df_sub["aper04_flux"] / df_sub["aper02_flux"].replace(0, np.nan)).values
             props["flux_ratio_aper04_aper08"] = (df_sub["aper08_flux"] / df_sub["aper04_flux"].replace(0, np.nan)).values
 
-            # Theoretical PSF flux error
-            f_src = df_sub["psf_flux"].values / kappa
-            term_err = t_exp * (n_eff * f_bkgd + f_src)
-            # to avoid invalid value error in sqrt
-            term_err_clipped = np.clip(term_err, 0.0, None)
-            sigma_f = np.sqrt(term_err_clipped) / t_exp
-            psf_flux_err_theory = sigma_f * kappa
-            # to avoid invalid value error
-            psf_flux_err_theory[psf_flux_err_theory==0.0] = np.nan
-            props["flux_err_ratio_psf_theory"] = df_sub["psf_flux_err"].values / psf_flux_err_theory
+            # PSF flux error
+            flux_err_theory = psf_flux_error_theory(df_sub["psf_flux"].values, t_exp, zp, n_eff, f_bkgd)
+            props["flux_err_ratio_psf_theory"] = df_sub["psf_flux_err"].values / flux_err_theory
+
+            # # Theoretical PSF flux error
+            # f_src = df_sub["psf_flux"].values / kappa
+            # term_err = t_exp * (n_eff * f_bkgd + f_src)
+            # # to avoid invalid value error in sqrt
+            # term_err_clipped = np.clip(term_err, 0.0, None)
+            # sigma_f = np.sqrt(term_err_clipped) / t_exp
+            # psf_flux_err_theory = sigma_f * kappa
+            # # to avoid invalid value error
+            # psf_flux_err_theory[psf_flux_err_theory==0.0] = np.nan
+            # props["flux_err_ratio_psf_theory"] = df_sub["psf_flux_err"].values / psf_flux_err_theory
             return props
 
         df_props = compute_properties(df_pts)
 
-        # 9. Calculate and append median, RMS, and NMAD metrics
-        for prop in properties:
-            exp_val = expected_properties[prop]
-            for bin_name, cond in [("bright", cond_bright), ("faint", cond_faint)]:
-                vals = df_props[prop][cond]
-                vals=vals[np.isfinite(vals)]
-                # can be set higher to have robust statistics
-                if len(vals) <= 1:
-                    median_val = np.nan
-                    rms_val = np.nan
-                    nmad_val = np.nan
-                else:
-                    median_val = float(np.median(vals))
-                    rms_val = float(np.sqrt(np.mean((vals - exp_val)**2)))
-                    nmad_val = float(1.4826 * np.median(np.abs(vals - exp_val)))
+        # 9. Calculate and append median, stddev, and p16, p84 metrics
+        for prop in self.properties:
+            if prop.endswith("bright"):
+                vals = df_props[prop.rstrip('_bright')][cond_bright]
+            else:
+                vals = df_props[prop.rstrip('_faint')][cond_faint]
+            vals=vals[np.isfinite(vals)]
+            # can be set higher to have robust statistics
+            if len(vals) <= 1:
+                percentile_vals = [np.nan, np.nan, np.nan, np.nan, np.nan]
+                mean_val = np.nan
+                std_val = np.nan
+            else:
+                mean_val = float(np.mean(vals))
+                std_val = float(np.std(vals))
+                percentile_vals = np.percentile(vals, [2.275, 15.86, 50, 84.14, 97.725])
 
-                self.append_data(f"{prop}_{bin_name}_median", median_val, "")
-                self.append_data(f"{prop}_{bin_name}_rms", rms_val, "")
-                self.append_data(f"{prop}_{bin_name}_nmad", nmad_val, "")
+            self.append_data(f"{prop}_n_sources", len(vals), "")
+            self.append_data(f"{prop}_median", percentile_vals[2], "")
+            self.append_data(f"{prop}_dispersion_p68", (percentile_vals[3]-percentile_vals[1])/2.0, "")
+            self.append_data(f"{prop}_dispersion_p95", (percentile_vals[4]-percentile_vals[0])/4.0, "")
+            self.append_data(f"{prop}_mean", mean_val, "")
+            self.append_data(f"{prop}_std", std_val, "")
 
+    def _update_metric_evaluation(self, metric_name, error, expected_props, optical_filter):
+        """
+        Update the evaluation of a metric based on its expected properties and error.
+
+        Parameters
+        ----------
+        metric_name : str
+            Name of the metric to update.
+        error : float
+            The estimated error for the metric.
+        expected_props : pandas.DataFrame
+            Table containing the expected properties for the given filter.
+        optical_filter : str
+            The optical filter being used. e.g. f062.
+        """
+        data_value = self.get_data(metric_name)
+        if np.isfinite(data_value):
+            expected_properties=expected_props[expected_props['property_name'] == f"{metric_name}_{optical_filter}"]
+            if expected_properties.empty:
+                raise RuntimeError(f"SourceCatalogMonitor: filter '{metric_name}_{optical_filter}' not found in expected properties table")
+            min = expected_properties['min'].values[0] + 3*error
+            max = expected_properties['max'].values[0] - 3*error
+            if (data_value<min) | (data_value>max):
+                self.add_evaluation(metric_name, False)
 
 
     def evaluate_metrics(self):
         """
         Evaluate metrics against validity (checking they are not None and finite).
+        When number of sources does not meet the minimum requirement, n_sources is evaluated and set to False, 
+        but the evaluation for median and dispersion metrics is skipped.
         """
-        for metric_name, card in self.data.items():
-            is_valid = self.is_valid_metric(metric_name, card.data_value)
-            if is_valid:
-                self.add_evaluation(metric_name, True)
+
+        optical_filter = self.asdf_file["roman"]["meta"]["instrument"]["optical_element"].strip().lower()
+        # Expected values for each property for a given filter
+        expected_props = self._load_data_file("expected_photometric_properties.ecsv")
+
+
+        for property in self.properties:
+            # first we evaluate the basic validity of each metric and set status to False if it is not valid
+            for stat_name in self.statistics:
+                metric_name = f"{property}_{stat_name}"
+                data_value = self.get_data(metric_name)
+                is_valid = self.is_valid_metric(metric_name, data_value)
+                if is_valid:
+                    self.add_evaluation(metric_name, True)
+
+            # These are needed to evaluate the median and dispersion metrics
+            dispersion = self.get_data(property+"_dispersion_p68")
+            n_sources = self.get_data(property+"_n_sources")
+
+            if n_sources >= 10:
+                # median and dispersion metrics are evaluted only if there are enough sources
+                if np.isfinite(dispersion):
+                    # formula for standard error of the median
+                    error=dispersion/np.sqrt(n_sources)
+                    self._update_metric_evaluation(f"{property}_median", error, expected_props, optical_filter)
+
+                    # formula for std deviation of std deviation
+                    error=dispersion/np.sqrt(2*(n_sources-1))
+                    self._update_metric_evaluation(f"{property}_dispersion_p68", error, expected_props, optical_filter)
+            else:   
+                # Not enough sources to evaluate the metric
+                self.add_evaluation(f"{property}_n_sources", False)
+
+
