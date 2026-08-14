@@ -114,9 +114,9 @@ def metadata_check_function(message_dict, aws_account_id):
         # Define selection rules for each monitor. Each rule is a list of tuples where each tuple contains a condition and the corresponding status value to set. The conditions are SQLAlchemy expressions that evaluate to True or False for each row. The status values are integers that indicate whether the monitor should run (0) or not (-1).
         rules = {}
         logger.info("Defining selection rule for astrometry ...")
-        astrometry_rule = every_other_astrometry_rule(pk_rows)
+        astrometry_rule = every_other_rule(pk_rows, 'astrometry_status')
         # TODO: test once we have more data spread across time
-        # astrometry_rule = time_based_astrometry_rule(session, pk_rows)
+        # astrometry_rule = time_based_rule(session, pk_rows, 'astrometry_status')
         rules['astrometry_status'] = astrometry_rule
 
         # Validate selection rules and build SQL CASE statements.
@@ -201,14 +201,17 @@ def metadata_check_function(message_dict, aws_account_id):
     return {'statusCode': StatusCodes.SUCCESS,
                 'body': [{'message':'metadata_check_function ran successfully.'}]} 
 
-def every_other_astrometry_rule(pk_rows):
+def every_other_rule(pk_rows, status_column):
     """
-    Select every other pending row for astrometry execution.
+    Select every other pending row for the given monitor.
 
     Parameters
     ----------
     pk_rows : list of table rows (named tuples)
-        Rows that contain at least ``filename`` and ``reprocess_number``.
+        Rows that contain at least ``filename``, ``reprocess_number``, and
+        the column named by ``status_column``.
+    status_column : str
+        Name of the ``*_status`` column that this rule targets.
 
     Returns
     -------
@@ -216,20 +219,20 @@ def every_other_astrometry_rule(pk_rows):
         Rule tuples consumable by ``sqlalchemy.case`` in the form
         ``[(condition, status_value)]``.
     """
-    indices = [(row.filename, row.reprocess_number) for row in pk_rows]
+    indices = [(row.filename, row.reprocess_number) for row in pk_rows if getattr(row, status_column) == -2]
     selected_pks = []
     for i, (filename, reprocess_number) in enumerate(indices):
         if i % 2 == 0:  # Select every other row (even index)
             selected_pks.append((filename, reprocess_number))
 
-    astrometry_should_run = tuple_(
+    should_run = tuple_(
         L2ScienceMetaTable.filename,
         L2ScienceMetaTable.reprocess_number,
     ).in_(selected_pks)
 
-    return [(astrometry_should_run, 0)]
+    return [(should_run, 0)]
     
-def time_based_astrometry_rule(session, pk_rows):
+def time_based_rule(session, pk_rows, status_column):
     """
     Select rows spaced by at least one hour from the last selected run time.
     
@@ -240,6 +243,8 @@ def time_based_astrometry_rule(session, pk_rows):
     pk_rows : list of tuples
         Rows that contain at least ``filename``, ``reprocess_number``, and
         ``exp_start_datetime``.
+    status_column : str
+        Name of the ``*_status`` column that this rule targets.
 
     Returns
     -------
@@ -248,12 +253,13 @@ def time_based_astrometry_rule(session, pk_rows):
         ``[(condition, status_value)]``.
     """
     astrometry_time_delta = timedelta(hours=1)
-    # Limit lookback for prior astrometry activity when computing cadence.
+    # Limit look back for prior activity when computing cadence.
     query_time_delta = timedelta(days=30)
+    status_col = getattr(L2ScienceMetaTable, status_column)
     last_astrometry_time = session.execute(
         select(L2ScienceMetaTable.exp_start_datetime)
         .where(and_(
-            L2ScienceMetaTable.astrometry_status.in_([0,1]),
+            status_col.in_([0,1]),
             L2ScienceMetaTable.exp_start_datetime.is_not(None),
             L2ScienceMetaTable.exp_start_datetime > (datetime.now() - query_time_delta)
         ))
@@ -263,18 +269,18 @@ def time_based_astrometry_rule(session, pk_rows):
 
     selected_pks = []
     last_time = last_astrometry_time
-    indices = [(row.filename, row.reprocess_number, row.exp_start_datetime) for row in pk_rows]
+    indices = [(row.filename, row.reprocess_number, row.exp_start_datetime) for row in pk_rows if getattr(row, status_column) == -2]
     for filename, reprocess_number, exp_start_dt in indices:
         if last_time is None or exp_start_dt > last_time + astrometry_time_delta:
             selected_pks.append((filename, reprocess_number))
             last_time = exp_start_dt
 
-    astrometry_should_run = tuple_(
+    should_run = tuple_(
         L2ScienceMetaTable.filename,
         L2ScienceMetaTable.reprocess_number,
     ).in_(selected_pks)
 
-    return [(astrometry_should_run, 0)]
+    return [(should_run, 0)]
 
 def generate_message_dict_from_metadata_table(metadata_table_class, monitor_name):
     """
