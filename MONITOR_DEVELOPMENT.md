@@ -87,6 +87,7 @@ This file tracks the development status and prioritization of monitors across th
 - **Submodule:** [source_catalog](rdmt_spire/monitors/source_catalog/)
 - **Related Issues/PRs:**
   - [ISSUE 4](https://github.com/spacetelescope/rdmt-spire/issues/4)
+  - [PR 13](https://github.com/spacetelescope/rdmt-spire/pull/13) - Initial implementation  
 - **Description:** Using the L4 detector catalog files, this monitor bins point sources by brightness and then calculates statistics like median, RMS, and NMAD for quantities like sharpness, roundness, ellipticity, and encircled energy. See [source_catalog README](rdmt_spire/monitors/source_catalog/README.md) for details.
 
 ---
