@@ -34,8 +34,10 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
         if 'Records' in event:
             # batch_size must be 1 for most execution options
             if len(event['Records']) == 1:
-                body = json.loads(event['Records'][0]['body'])
-    
+                body = event['Records'][0]['body']
+                if isinstance(body, str):
+                    body = json.loads(body)
+
                 # the SQS from DMD will not have "function_type" in it
                 if MessageKeys.FUNCTION_TYPE not in body.keys():
                     message_dict = json.loads(body['Message'])
@@ -45,11 +47,11 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
                 elif body[MessageKeys.FUNCTION_TYPE] == FunctionTypes.MONITOR:
                     return monitor_function(body)
                 elif body[MessageKeys.FUNCTION_TYPE] == FunctionTypes.METADATA_CHECK:
-                    return metadata_check_function(body, aws_account_id)  
+                    return metadata_check_function(body, aws_account_id)
                 elif body[MessageKeys.FUNCTION_TYPE] == FunctionTypes.REPORT_GEN:
                     report_type = body.get(MessageKeys.REPORT_TYPE)
                     return report_function(report_type)
-            
+
             else:
                 function_type_checks = [MessageKeys.FUNCTION_TYPE in json.loads(rec['body']['Message']).keys() for rec in event['Records']]
 
@@ -66,7 +68,7 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
             return {'statusCode': StatusCodes.BAD_EVENT_FORMAT,
                     'body': [{'error_message':'Incorrect event format provided to app.py'}]}
     except Exception as e:
-        logger.error(f"Failed somewhere in app.py with error: {e}")
+        logger.error(f"Failed somewhere in app.py with error: {e}", exc_info=True)
         return {
             'statusCode': StatusCodes.FAILURE,
             'body': [{'error_message':f"{e}"}],

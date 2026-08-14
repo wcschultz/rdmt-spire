@@ -14,8 +14,8 @@ from ..constants.lambdas import (
     AWS_PARAMETER_PATH,
     DB_NAME,
     DB_SECRET_NAME,
+    ESSENTIAL_L2_MONITOR_QUEUE,
     GUIDE_WINDOW_MONITOR_QUEUE,
-    NOISE_1F_MONITOR_QUEUE,
     MessageKeys,
 )
 from ..db_tables.gw_tables import L1GuideWindowMetaTable
@@ -89,7 +89,7 @@ def ingest_single(message_dict, notification_datetime, aws_account_id):
     # Determine reprocessing number
     logger.info('Determining reprocessing number.')
     reprocess_number, rep_num_err = determine_reprocessing_number(message_dict, previous_reprocess_nums_list[0])
-    
+
     if rep_num_err is None:
         meta_table.reprocess_number = reprocess_number
     else:
@@ -112,7 +112,7 @@ def ingest_single(message_dict, notification_datetime, aws_account_id):
     if message_dict[MessageKeys.FILE_TYPE] == FileTypes.L2_SCIENCE:
         # TODO: replace this with the essential monitor queue after testing
         message_sqs_url = get_sqs_url(
-            params[NOISE_1F_MONITOR_QUEUE], 
+            params[ESSENTIAL_L2_MONITOR_QUEUE],
             account_id=aws_account_id,
             sqs_client=sqs_client
         )
@@ -121,7 +121,7 @@ def ingest_single(message_dict, notification_datetime, aws_account_id):
 
     elif message_dict[MessageKeys.FILE_TYPE] == FileTypes.L1_GUIDE_WINDOW:
         message_sqs_url = get_sqs_url(
-            params[GUIDE_WINDOW_MONITOR_QUEUE], 
+            params[GUIDE_WINDOW_MONITOR_QUEUE],
             account_id=aws_account_id,
             sqs_client=sqs_client
         )
@@ -131,7 +131,7 @@ def ingest_single(message_dict, notification_datetime, aws_account_id):
         logger.error(f"Unexpected file type: {message_dict[MessageKeys.FILE_TYPE]}. No monitor message will be sent.")
         return {'statusCode': StatusCodes.UNEXPECTED_FILE_TYPE,
                 'body': [{'error_message': f'Unexpected file type: {message_dict[MessageKeys.FILE_TYPE]}. No monitor message will be sent.'}]}
-    
+
     try:
         response = sqs_client.send_message(
             QueueUrl=message_sqs_url,
@@ -202,7 +202,7 @@ def create_table_class_from_message(message_dict):
         meta_table.visit_id = obs_info['visit_id']
         meta_table.detector = obs_info['detector']
         meta_table.optical_element = obs_info['optical_element']
-    
+
     elif message_dict[MessageKeys.FILE_TYPE] == FileTypes.L1_GUIDE_WINDOW:
         meta_table = L1GuideWindowMetaTable()
         # Save metadata from DMD notification
@@ -256,19 +256,19 @@ def get_previous_file_reprocess_numbers(engine, meta_tables):
     for unique_table_class in unique_classes:
         filenames = [mt.filename for mt in meta_tables if isinstance(mt, unique_table_class)]
         stmts.append(select(unique_table_class).where(unique_table_class.filename.in_(filenames)))
-    
+
     # execute the statements and save the resulting rows in a list
     db_rows = []
     with Session(engine) as session:
         for stmt in stmts:
             result_rows = session.scalars(stmt).all()
             db_rows += result_rows
-    
+
     # generate a list of reprocessing numbers for each input metadata table
     reprocess_nums_list = []
     for mt in meta_tables:
         reprocess_nums_list.append([row.reprocess_number for row in db_rows if row.filename == mt.filename])
-    
+
     return reprocess_nums_list
 
 def determine_reprocessing_number(message_dict, previous_reprocess_nums):
@@ -355,13 +355,13 @@ def write_new_metadata_table_rows(engine, rows_to_add):
 def ingest_batch(message_dicts, notification_datetimes):
     """
     A still to be implemented version of ingest_single that handles a larger batch size of messages.
-    
+
     """
     # Unpack the message attributes into a table class
     meta_tables = [create_table_class_from_message(md) for md in message_dicts]
     for i, mt in enumerate(meta_tables):
         mt.dmd_notify_datetime = notification_datetimes[i]
-    
+
     logger.info(f'dmd notify times: {[mt.dmd_notify_datetime for mt in meta_tables]}')
 
     # Connecting to the database

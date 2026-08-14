@@ -8,12 +8,14 @@ AWS_PARAMETER_PATH = f"/{prefix}/config/"
 # SQS queue parameter names
 NOISE_1F_MONITOR_QUEUE = "noise_1f_monitor_queue"
 ASTROMETRY_MONITOR_QUEUE = "astrometry_monitor_queue"
+ESSENTIAL_L2_MONITOR_QUEUE = "essential_l2_monitor_queue"
 GUIDE_WINDOW_MONITOR_QUEUE = "guide_window_monitor_queue"
 
 AWS_MONITOR_QUEUES = [
     NOISE_1F_MONITOR_QUEUE,
     ASTROMETRY_MONITOR_QUEUE,
-    GUIDE_WINDOW_MONITOR_QUEUE,
+    ESSENTIAL_L2_MONITOR_QUEUE,
+    GUIDE_WINDOW_MONITOR_QUEUE
 ]
 
 # SNS topic parameter names
