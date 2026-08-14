@@ -56,11 +56,12 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
                         }]
                     }
             else:
-                function_type_checks = [MessageKeys.FUNCTION_TYPE in json.loads(rec['body']['Message']).keys() for rec in event['Records']]
+                message_dicts = [json.loads(rec['body']['Message']) for rec in event['Records']]
+                function_type_checks = [MessageKeys.FUNCTION_TYPE in message_dict.keys() for message_dict in message_dicts]
 
                 # if no function_type is specified, the 'ingest_function' should be used
                 if sum(function_type_checks) == 0:
-                    message_dicts = [json.loads(rec['body']['Message']) for rec in event['Records']]
+                    
                     notification_datetimes = [float(rec['attributes']['SentTimestamp'])/1000.0 for rec in event['Records']]
                     return ingest_batch(message_dicts, notification_datetimes)
                 else:
