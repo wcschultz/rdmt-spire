@@ -64,51 +64,54 @@ def metadata_check_function(message_dict, aws_account_id):
     logger.info('Connecting to the database...')
     sql_engine = connect_to_db(database_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])
 
-    # Fetch all rows that have any pending monitor status (-2).
     with Session(sql_engine) as session:
+        # Fetch all rows that have any pending monitor status (-2).
         logger.info("Querying database for new rows to check ...")
+        # Build a filter condition that checks for any status column being -2.
         all_min2_statuses = or_(
             *[getattr(L2ScienceMetaTable, col) == -2 for col in all_status_columns]
         )
+        # Select only the primary key columns and the status columns for efficiency.
         ids_and_status_columns = [
             L2ScienceMetaTable.filename,
             L2ScienceMetaTable.reprocess_number,
             L2ScienceMetaTable.exp_start_datetime,
             *[getattr(L2ScienceMetaTable, col) for col in all_status_columns],
         ]
+        # Query the database for rows that have any status column equal to -2.
         pk_rows = session.execute(
             select(*ids_and_status_columns).where(all_min2_statuses)
             .order_by(L2ScienceMetaTable.exp_start_datetime.asc())
         ).all()
 
+        # Check for any rows that have -2 in non-supported status columns. If any are found, raise an error.
         non_metadata_check_status_columns = [
             col for col in all_status_columns if col not in metadata_check_status_columns
         ]
-        if non_metadata_check_status_columns and any(
-            getattr(row, col) == -2 for row in pk_rows for col in non_metadata_check_status_columns
-        ):
+        if non_metadata_check_status_columns:
             bad_columns = []
             for row in pk_rows:
                 for col in non_metadata_check_status_columns:
                     if getattr(row, col) == -2:
                         logger.error(f"Row with filename={row.filename}, reprocess_number={row.reprocess_number} has {col} == -2, which is not supported for metadata checks.")
                         bad_columns.append(col)
-            raise ValueError(
-                "Found rows with -2 in unsupported status columns: "
-                f"{', '.join(set(bad_columns))}"
-            )
+            if len(bad_columns) > 0:
+                raise ValueError(
+                    "Found rows with -2 in unsupported status columns: "
+                    f"{', '.join(set(bad_columns))}"
+                )
 
+        # If no rows are found, return a success message indicating that no messages will be sent to SQS.
         if not pk_rows:
             logger.info("No rows found with any *_status == -2. No messages will be sent to SQS.")
             return {
                 "statusCode": StatusCodes.SUCCESS,
                 "body": [{"message": "No rows found with any *_status == -2. No messages sent to SQS."}],
             }
-        
         logger.info(f"Found {len(pk_rows)} rows with any *_status == -2.")
 
         logger.info("Defining selection rules for metadata checks ...")
-        # Each rule maps SQLAlchemy conditions to target status values.
+        # Define selection rules for each monitor. Each rule is a list of tuples where each tuple contains a condition and the corresponding status value to set. The conditions are SQLAlchemy expressions that evaluate to True or False for each row. The status values are integers that indicate whether the monitor should run (0) or not (-1).
         rules = {}
         logger.info("Defining selection rule for astrometry ...")
         astrometry_rule = every_other_astrometry_rule(pk_rows)
@@ -116,7 +119,7 @@ def metadata_check_function(message_dict, aws_account_id):
         # astrometry_rule = time_based_astrometry_rule(session, pk_rows)
         rules['astrometry_status'] = astrometry_rule
 
-        # Build CASE statements from validated rule tuples.
+        # Validate selection rules and build SQL CASE statements.
         logger.info("Validating selection rules and building sql statement ...")
         rule_statements = {}
         for col, rule in rules.items():
@@ -127,8 +130,11 @@ def metadata_check_function(message_dict, aws_account_id):
             
         # Apply rule-based status updates to the pending rows.
         logger.info("Updating rows in the database based on selection rules ...")
+        
+        # isolate the primary key values for the rows to update
         pk_values = [(row.filename, row.reprocess_number) for row in pk_rows]
 
+        # Build the update statement to set the status columns based on the selection rules. The update will only affect rows that match the primary key values of the pending rows.
         stmt = (
             update(L2ScienceMetaTable)
             .where(
@@ -146,6 +152,8 @@ def metadata_check_function(message_dict, aws_account_id):
 
         # Reload rows selected for at least one metadata check.
         logger.info("Querying database for rows that have been updated to *_status == 0 ...")
+
+        # Fetch all rows that were just updated and have any of the metadata check status columns equal to 0 (selected).
         updated_rows = session.execute(
             select(L2ScienceMetaTable).where(
                 and_(
@@ -158,6 +166,7 @@ def metadata_check_function(message_dict, aws_account_id):
             )
         ).scalars().all()
 
+    # if no rows were selected for any metadata check, return a success message indicating that no messages will be sent to SQS.
     if not updated_rows:
         return {
             "statusCode": StatusCodes.SUCCESS,
@@ -166,6 +175,8 @@ def metadata_check_function(message_dict, aws_account_id):
     
     logger.info(f"Found {len(updated_rows)} rows with *_status == 0 after update. Sending messages to SQS.")
     sqs = boto3.client("sqs", region_name='us-east-1')
+
+    # gather all rows that have the various _status columns == 0 and send them to the appropriate SQS queue for processing by the monitor lambdas.
     astrometry_rows = [row for row in updated_rows if row.astrometry_status == 0]
     if astrometry_rows:
         astrometry_queue = get_sqs_url(
@@ -196,7 +207,7 @@ def every_other_astrometry_rule(pk_rows):
 
     Parameters
     ----------
-    pk_rows : list of tuples
+    pk_rows : list of table rows (named tuples)
         Rows that contain at least ``filename`` and ``reprocess_number``.
 
     Returns
