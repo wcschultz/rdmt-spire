@@ -38,6 +38,8 @@ class SourceCatalogMonitor(BaseMonitor):
         # Define properties and statistics for the metrics
         self.properties = SOURCE_CATALOG_PROPERTIES.copy()
         self.statistics = SOURCE_CATALOG_STATISTICS.copy()
+        # Expected values for each property for a given filter, table pandas.DataFrame
+        self.expected_props = self._load_data_file("expected_photometric_properties.ecsv")
 
     def _load_data_file(self, filename: str) -> pd.DataFrame:
         """
@@ -208,7 +210,8 @@ class SourceCatalogMonitor(BaseMonitor):
 
     def _update_metric_evaluation(self, metric_name, error, expected_props, optical_filter):
         """
-        Update the evaluation of a metric based on its expected properties and error.
+        Update the metric evaluation status to False if the metric value falls outside the expected range
+        of a metric based on its expected properties and error else leave the status unchanged.
 
         Parameters
         ----------
@@ -240,12 +243,11 @@ class SourceCatalogMonitor(BaseMonitor):
         """
 
         optical_filter = self.asdf_file["roman"]["meta"]["instrument"]["optical_element"].strip().lower()
-        # Expected values for each property for a given filter
-        expected_props = self._load_data_file("expected_photometric_properties.ecsv")
 
 
         for property in self.properties:
-            # first we evaluate the basic validity of each metric and set status to False if it is not valid
+            # First we evaluate the basic validity of each metric and set evalutation status to 
+            # False if it is not valid and True if it is valid
             for stat_name in self.statistics:
                 metric_name = f"{property}_{stat_name}"
                 data_value = self.get_data(metric_name)
@@ -253,7 +255,11 @@ class SourceCatalogMonitor(BaseMonitor):
                 if is_valid:
                     self.add_evaluation(metric_name, True)
 
-            # These are needed to evaluate the median and dispersion metrics
+            # For a few specific properties, e.g., median and dispersion, 
+            # we do a more rigorous evaluation of the metrics and 
+            # set the evalutation status to False if it fails certain criterion
+
+            # These are needed for the rigorous evaluation of the median and dispersion metrics
             dispersion = self.get_data(property+"_dispersion_p68")
             n_sources = self.get_data(property+"_n_sources")
 
@@ -262,11 +268,11 @@ class SourceCatalogMonitor(BaseMonitor):
                 if np.isfinite(dispersion):
                     # formula for standard error of the median
                     error=dispersion/np.sqrt(n_sources)
-                    self._update_metric_evaluation(f"{property}_median", error, expected_props, optical_filter)
+                    self._update_metric_evaluation(f"{property}_median", error, self.expected_props, optical_filter)
 
                     # formula for std deviation of std deviation
                     error=dispersion/np.sqrt(2*(n_sources-1))
-                    self._update_metric_evaluation(f"{property}_dispersion_p68", error, expected_props, optical_filter)
+                    self._update_metric_evaluation(f"{property}_dispersion_p68", error, self.expected_props, optical_filter)
             else:   
                 # Not enough sources to evaluate the metric
                 self.add_evaluation(f"{property}_n_sources", False)

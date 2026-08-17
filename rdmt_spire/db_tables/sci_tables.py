@@ -101,8 +101,8 @@ def _add_science_results_columns(cls):
 
     # We start with source_catalog monitor properties 
     # One can add properties from other monitors if need be 
-    properties=SOURCE_CATALOG_PROPERTIES
-    statistics=SOURCE_CATALOG_STATISTICS
+    properties = SOURCE_CATALOG_PROPERTIES
+    statistics = SOURCE_CATALOG_STATISTICS
 
     # we iterate over each property and each statistic
     for prop in properties:
