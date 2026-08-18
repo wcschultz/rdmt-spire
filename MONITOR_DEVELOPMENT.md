@@ -15,7 +15,7 @@ This file tracks the development status and prioritization of monitors across th
 | [Astrometry Monitor](#monitor-astrometry) | Implemented |
 | [1/f Noise Monitor](#monitor-noise-1f) | Implemented |
 | [Guide Window Monitor](#monitor-guide-window) | Implemented |
-| [Source Catalog Monitor](#monitor-source-catalog) | Prioritized (P1) |
+| [Source Catalog Monitor](#monitor-source-catalog) | Implemented |
 | [Photometry Monitor](#monitor-photometry) | Prioritized (P1) |
 | [Pixel Monitor](#monitor-pixel-monitor) | Implemented |
 | [Flat Field Flux Monitor](#monitor-flat-field-flux) | Prioritized (P2) |
@@ -82,17 +82,17 @@ This file tracks the development status and prioritization of monitors across th
   - [PR 16](https://github.com/spacetelescope/rdmt-spire/pull/16) - Initial implementation
 - **Description:** This is a large catch-all monitor for any types of pixel that would be helpful to trend. This currently includes, but is not limited to the number of saturated pixels, min/mean/max/std/percentiles of the pixel values, pixel scale at the corners and center of the detector, and includes these values over the entire detector as well as different regions (e.g. 4 corners and a central region).
 
+<a id="monitor-source-catalog"></a>
+#### Source Catalog Monitor
+- **Submodule:** [source_catalog](rdmt_spire/monitors/source_catalog/)
+- **Related Issues/PRs:**
+  - [ISSUE 4](https://github.com/spacetelescope/rdmt-spire/issues/4) -  Requirements and design
+  - [PR 13](https://github.com/spacetelescope/rdmt-spire/pull/13) - Initial implementation  
+- **Description:** Using the L4 detector catalog files, this monitor bins point sources by brightness and then calculates statistics like median, RMS, and NMAD for quantities like sharpness, roundness, ellipticity, and encircled energy. See [source_catalog README](rdmt_spire/monitors/source_catalog/README.md) for details.
+
 ---
 
 ### Prioritized
-
-<a id="monitor-source-catalog"></a>
-#### Source Catalog Monitor
-- **Related Issues:**
-  - [ISSUE 4](https://github.com/spacetelescope/rdmt-spire/issues/4)
-- **Priority Level:** P1 - High priority
-- **Estimated Work:** L (involves coordinating with L4 detector files and binning sources by brightness)
-- **Description:** Using the L4 detector catalog files, this monitor will bin the sources by brightness  and then calculate average value of quantities like flux ratios, radius for 50% encircled energy and so on.
 
 <a id="monitor-photometry"></a>
 #### Photometry Monitor

@@ -4,7 +4,11 @@ from typing import Any, Dict, List
 
 import boto3
 import numpy as np
-from botocore.exceptions import ClientError
+from botocore.exceptions import (
+    ClientError,
+    NoCredentialsError,
+    ParamValidationError,
+)
 
 
 def fetch_parameters_from_path(path: str, expected_parameters: List[str], ssm_client=None) -> Dict[str, str]:
@@ -234,10 +238,12 @@ def get_sqs_url(queue_name, account_id=None, sqs_client=None):
     return response['QueueUrl']
 
 def load_file_object(bucket_name: str, key_name: str, mode: str = "rb"):
-    """Load a file form a local filesystem or from an S3 bucket on AWS.
+    """Load a file from a local filesystem or from an S3 bucket on AWS.
 
     Parameters
     ----------
+    mode : str, optional
+        The mode in which to open the file (default is "rb").
     bucket_name : str
         path to the S3 bucket (or local directory) that is storing the file
     key_name : str
@@ -248,17 +254,28 @@ def load_file_object(bucket_name: str, key_name: str, mode: str = "rb"):
     the contents of the file as a series of bytes
 
     """
+    local_path = os.path.join(bucket_name, key_name)
+
     try:
-        content = load_s3_object(bucket_name, key_name)
-    except ClientError:
+        return load_s3_object(bucket_name, key_name)
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code")
+        if error_code in ['InvalidAccessKeyId']:
+            # Forbidden error — fall back to local filesystem
+            if os.path.exists(local_path):
+                with open(local_path, mode=mode) as fp:
+                    return io.BytesIO(fp.read())
+            raise FileNotFoundError(f"File not found at local path: {local_path}")
+        else:
+            # on AWS but S3 couldn't find or serve the object 
+            raise FileNotFoundError(f"File not found in S3: s3://{bucket_name}/{key_name}")
+    except (ParamValidationError, NoCredentialsError):
+        # Seems like local path beginning with slash— fall back to local filesystem
         local_path = os.path.join(bucket_name, key_name)
         if os.path.exists(local_path):
             with open(local_path, mode=mode) as fp:
-                content = io.BytesIO(fp.read())
-        else:
-            raise FileNotFoundError(f"File not found in S3 bucket or local path: {local_path}")        
-
-    return content
+                return io.BytesIO(fp.read())
+        raise FileNotFoundError(f"File not found at local path : {local_path}")
 
 
 def file_exists(bucket_name: str, key_name: str):
@@ -277,17 +294,19 @@ def file_exists(bucket_name: str, key_name: str):
     bool
 
     """
-    if bucket_name.startswith("s3://"):
+    local_path=os.path.join(bucket_name, key_name)
+    try:
         s3_client = boto3.client("s3")
-        try:
-            s3_client.head_object(Bucket=bucket_name, Key=key_name)
-            return True
-        except ClientError as e:
-            if e.response["Error"]["Code"] == "404":
-                return False
-            else:
-                # Something else went wrong (e.g., permissions)
-                raise e
-    else:
-        return os.path.exists(os.path.join(bucket_name, key_name))
-
+        s3_client.head_object(Bucket=bucket_name, Key=key_name)
+        return True
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code")
+        if error_code in ['403']:
+            # Forbidden error — fall back to local filesystem
+            return os.path.exists(local_path)
+        else:
+            # S3 is reachable — resource or bucket simply does not exist
+            return False
+    except (ParamValidationError, NoCredentialsError):
+        # Seems like local path beginning with slash— fall back to local filesystem
+        return os.path.exists(local_path)

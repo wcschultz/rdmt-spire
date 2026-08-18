@@ -82,6 +82,16 @@ class MonitorManager:
                 monitor_pixel_statistics.PixelStatisticsMonitor(self.asdf_file)
             )
 
+        elif monitor_name == "source_catalog":
+            if monitor_config is None or "source_catalog" not in monitor_config or "datadir" not in monitor_config["source_catalog"]:
+                logger.error("MonitorManager: Missing 'datadir' in monitor_config for source_catalog monitor.")
+                self.statusCode = StatusCodes.FAILURE
+                self.errors.append("MonitorManager: Missing 'datadir' in monitor_config for source_catalog monitor.")
+                return
+            monitor_source_catalog = import_module("rdmt_spire.monitors.source_catalog")
+            self.monitor_objects.append(
+                monitor_source_catalog.SourceCatalogMonitor(self.asdf_file, monitor_config["source_catalog"]["datadir"]))
+
         elif monitor_name == "base_monitor":
             self.monitor_objects.append(
                 BaseMonitor(self.asdf_file)

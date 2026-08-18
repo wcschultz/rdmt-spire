@@ -14,6 +14,7 @@ from ..constants.lambdas import (
     AWS_S3_BUCKETS,
     DB_NAME,
     DB_SECRET_NAME,
+    SOURCE_CATALOG_MONITOR_DATA_BUCKET,
     MessageKeys,
 )
 from ..db_tables.gw_tables import L1GuideWindowMetaTable, L1GuideWindowResultsTable
@@ -147,6 +148,10 @@ def generate_monitor_config(message_dict, params):
     if message_dict[MessageKeys.MONITOR_NAME] == "astrometry":
         monitor_config["astrometry"] = {
             "datadir": params[ASTROMETRY_MONITOR_DATA_BUCKET]
+        }
+    elif message_dict[MessageKeys.MONITOR_NAME] == "source_catalog":
+        monitor_config["source_catalog"] = {
+            "datadir": params[SOURCE_CATALOG_MONITOR_DATA_BUCKET]
         }
     
     return monitor_config

@@ -75,14 +75,14 @@ distribute-*.tar.gz
 #*.whl
 
 # Environments
-.env/
+.env
 venv/
 env/
 .venv/
 pip-wheel-metadata/
 .tox/
 .python-version
-
+.conda/
 
 # OS generated files
 .DS_Store
