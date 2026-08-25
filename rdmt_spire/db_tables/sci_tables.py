@@ -44,7 +44,7 @@ class L2ScienceMetaTable(Base):
 
     # Information that requires opening the file to extract
     observation_id:         Mapped[Optional[str]] = mapped_column(String(OBSERVATION_ID_LENGTH)) # from meta.observation.observation_id
-    exp_start_datetime:     Mapped[Optional[datetime]] = mapped_column(DateTime()) # from meta.exposure.start_time
+    exp_start_datetime:     Mapped[Optional[datetime]] = mapped_column(DateTime(), index=True) # from meta.exposure.start_time
     romancal_version:       Mapped[Optional[str]] = mapped_column(String(SOFTWARE_VERSION_LENGTH)) # from meta.calibration_software_version
     crds_context:           Mapped[Optional[str]] = mapped_column(String(SOFTWARE_VERSION_LENGTH)) # from meta.ref_file.crds.context
     sdf_version:            Mapped[Optional[str]] = mapped_column(String(SOFTWARE_VERSION_LENGTH)) # from meta.sdf_software_version
@@ -52,17 +52,15 @@ class L2ScienceMetaTable(Base):
     # Information populated by RDMT
     monitor_end_datetime:   Mapped[Optional[datetime]] = mapped_column(DateTime()) # populated by Spire
     # Below are the monitor completion checks:
-    # -1 indicates the monitor should not be run
-    # 0 indicates the monitor still needs to be run
     # 1 indicates the monitor ran successfully
+    # 0 indicates the monitor still needs to be run
+    # -1 indicates the monitor should not be run
+    # -2 indicates the monitor may need to be run depending on the metadata checks
     essential_status:       Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
-    persistence_status:     Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
-    comprehensive_status:   Mapped[int] = mapped_column(Integer(), default=-1) # populated by Spire
     
-    # for testing
-    astrometry_status:      Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
-    noise_1f_status:        Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
-    source_catalog_status:  Mapped[int] = mapped_column(Integer(), default=0) # populated by Spire
+    # periodic monitors are run on a schedule and may not be run for every file. The status is set to -1 if the monitor should not be run for this file.   
+    astrometry_status:      Mapped[int] = mapped_column(Integer(), default=-2) # populated by Spire
+    source_catalog_status:  Mapped[int] = mapped_column(Integer(), default=-2) # populated by Spire
 
     def _get_verification_columns(self):
         return [
@@ -85,8 +83,6 @@ class L2ScienceMetaTable(Base):
             "sdf_version",
             "monitor_end_datetime",
             "essential_status",
-            "comprehensive_status",
-            "persistence_status",
             "astrometry_status",
             "source_catalog_status",
         ]

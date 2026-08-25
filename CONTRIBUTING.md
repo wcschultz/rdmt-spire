@@ -12,6 +12,10 @@ If you have an idea for a new monitor or an improvement to an existing one, we e
 
 If you would like to directly contribute to the repository, please follow the instructions below for how to contribute to this repository using a forking workflow. We cannot guarantee that all pull requests will be accepted, but we welcome contributions that are well-documented and well-tested. If you have questions about whether a contribution is appropriate or how to implement it, please feel free to open an issue in the repository.
 
+#### Monitor Metric Naming Convention
+
+Monitor metric keys stored in data cards and column names in the database tables must use lowercase names. This lowercase naming convention is enforced when adding metrics to the monitor data dictionary.
+
 #### Setting up a Personal Fork
 1. Create a personal fork of the `rdmt-spire` repository by visiting its location on GitHub and clicking the `Fork` button.  This will create a copy of the `rdmt-spire` repository under your personal GitHub account (hereby referred to as "personal fork").  Note that this only has to be done once.
 
