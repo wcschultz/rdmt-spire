@@ -198,6 +198,11 @@ def create_table_class_from_message(message_dict):
         # Save metadata from the filename
         obs_info = get_info_from_filename(message_dict[MessageKeys.FILENAME], FileTypes.L2_SCIENCE)
         meta_table.program_number = obs_info['program_num']
+        meta_table.execution_number = obs_info['execution_num']
+        meta_table.pass_number = obs_info['pass_num']
+        meta_table.segment_number = obs_info['segment_num']
+        meta_table.observation_number = obs_info['obs_num']
+        meta_table.visit_number = obs_info['visit_num']
         meta_table.exposure_number = obs_info['exposure_num']
         meta_table.visit_id = obs_info['visit_id']
         meta_table.detector = obs_info['detector']
