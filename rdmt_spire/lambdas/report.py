@@ -45,7 +45,7 @@ class ReportSpec:
     @property
     def meta_table_name(self) -> str:
         return self.meta_table_class.__tablename__
-    
+
     @property
     def results_table_name(self) -> str:
         return self.results_table_class.__tablename__
@@ -81,15 +81,15 @@ def _get_report_spec(report_type: str = FileTypes.L2_SCIENCE, params: dict = {})
 
 def report_function(report_type: str = FileTypes.L2_SCIENCE):
     """
-    Orchestrates the extraction, transformation, and reporting of RDMT file 
+    Orchestrates the extraction, transformation, and reporting of RDMT file
     metadata, metrics and evaluations.
 
-    This function connects to a MySQL database via DuckDB, identifies new 
-    records ready for reporting based on monitor status, updates their report 
-    timestamps, exports the combined metadata and results to a partitioned S3 
+    This function connects to a MySQL database via DuckDB, identifies new
+    records ready for reporting based on monitor status, updates their report
+    timestamps, exports the combined metadata and results to a partitioned S3
     Parquet dataset, and finally sends a summary notification via AWS SNS.
 
-    The process follows an ELT (Extract, Load, Transform) pattern leveraging 
+    The process follows an ELT (Extract, Load, Transform) pattern leveraging
     DuckDB's in-memory processing and S3 connectivity.
 
     Parameters
@@ -122,7 +122,7 @@ def report_function(report_type: str = FileTypes.L2_SCIENCE):
         # 'mysql': To connect to MySQL; 'aws' & 'httpfs': To stream directly to S3
         logger.info('Loading duckdb modules')
         conn.execute("LOAD mysql;")# TODO: LOAD aws; LOAD httpfs;")
-        
+
         # 2. Create a secret using the 'credential_chain' provider
         # This tells DuckDB to automatically find credentials using AWS SDK mechanisms
         logger.info('Creating duckdb secrets')
@@ -145,7 +145,7 @@ def report_function(report_type: str = FileTypes.L2_SCIENCE):
         # To DuckDB, the remote MySQL database now behaves like a local schema.
         logger.info('Attaching external database to duckdb')
         conn.sql("ATTACH '' AS rdmt_db (TYPE mysql, SECRET 'db_secret');")
-        
+
         # Switch to using rdmt_db server as default to allow SQLAlchemy to make SQL strings
         conn.sql("USE rdmt_db;")
 
@@ -156,7 +156,7 @@ def report_function(report_type: str = FileTypes.L2_SCIENCE):
             UPDATE {report_spec.meta_table_name}
             SET monitor_end_datetime = $1
             WHERE {status_ready_condition}
-            AND monitor_end_datetime IS NULL 
+            AND monitor_end_datetime IS NULL
         """
         update_report_result = conn.execute(update_report_time_str, (report_time,))
         num_reported_rows = update_report_result.fetchall()[0][0]
@@ -185,17 +185,17 @@ def report_function(report_type: str = FileTypes.L2_SCIENCE):
             # TODO: We might want to sort the exported Parquet file by visit id or obs id or program to speed up queries
             parquet_export_str = f"""
                 COPY (
-                    SELECT 
+                    SELECT
                         M.*,
                         R.* EXCLUDE(filename, reprocess_number),
-                        year(M.{report_spec.start_time_column}) AS obs_year_part, 
-                        month(M.{report_spec.start_time_column}) AS obs_month_part 
+                        year(M.{report_spec.start_time_column}) AS obs_year_part,
+                        month(M.{report_spec.start_time_column}) AS obs_month_part
                     FROM {report_spec.meta_table_name} AS M
                     JOIN {report_spec.results_table_name} AS R
                     ON M.filename = R.filename AND M.reprocess_number = R.reprocess_number
                     WHERE M.monitor_end_datetime = $1
-                ) 
-                TO '{s3_parquet_bucket_path}' 
+                )
+                TO '{s3_parquet_bucket_path}'
                 (FORMAT PARQUET, PARTITION_BY (obs_year_part, obs_month_part) {parquet_command}, FILENAME_PATTERN '{report_spec.parquet_file_prefix}');
             """
             conn.execute(parquet_export_str, (report_time,))
@@ -259,7 +259,7 @@ def report_function(report_type: str = FileTypes.L2_SCIENCE):
 
 def _status_columns_ready_condition(conn, table_name: str) -> str:
     """Build an AND predicate requiring every *_status column to be -1 or 1.
-    
+
     Parameters
     ----------
     conn : duckdb.DuckDBPyConnection
@@ -291,9 +291,9 @@ def generate_report_message(
     """
     Orchestrate the creation of a RDMT SPIRE report message string.
 
-    This function acts as the primary entry point for report generation. It 
-    constructs the S3 file path, calls sub-functions to identify failed 
-    evaluations and monitored file summaries, and wraps the results in a 
+    This function acts as the primary entry point for report generation. It
+    constructs the S3 file path, calls sub-functions to identify failed
+    evaluations and monitored file summaries, and wraps the results in a
     standardized header and layout.
 
     Parameters
@@ -301,10 +301,10 @@ def generate_report_message(
     duckdb_connection : duckdb.DuckDBPyConnection
         An active DuckDB connection object capable of executing SQL queries.
     s3_parquet_bucket : str
-        The base S3 bucket path (e.g., 's3://my-data-bucket/'). The function 
+        The base S3 bucket path (e.g., 's3://my-data-bucket/'). The function
         appends wildcards to search for nested Parquet files.
     report_generation_time : str or datetime
-        The specific timestamp used to filter the `monitor_end_datetime` 
+        The specific timestamp used to filter the `monitor_end_datetime`
         column in the dataset.
     report_spec : ReportSpec
         A dataclass instance containing report-type-specific configuration,
@@ -313,10 +313,10 @@ def generate_report_message(
     Returns
     -------
     message : str
-        The complete, formatted SPIRE report containing a timestamped header, 
-        a list of failed evaluations, and a hierarchical summary of 
+        The complete, formatted SPIRE report containing a timestamped header,
+        a list of failed evaluations, and a hierarchical summary of
         monitored files.
-    
+
     """
     s3_parquet_file_path = os.path.join(s3_parquet_bucket, "*/*/*.parquet")
     logger.info(f"Generating report message for parquet files at: {s3_parquet_file_path}")
@@ -337,20 +337,20 @@ def generate_report_message(
 
     hline = "-"*40
     message = f"""
-    ROMAN DATA MONITORING TOOL SPIRE REPORT 
+    ROMAN DATA MONITORING TOOL SPIRE REPORT
 
     Generated: {report_generation_time.strftime('%Y-%m-%d %H:%M:%S')}
     {hline}
-    
+
     FAILED EVALUATIONS:
     {hline}
     {eval_str}
-    
+
     MONITORED FILES SUMMARY:
     {hline}
     {info_str}
-    
-    
+
+
 
     """
 
@@ -365,9 +365,9 @@ def get_failed_evaluations(
     """
     Identify and format metric evaluations that failed (False) in a report.
 
-    This function dynamically constructs a DuckDB SQL query to unpivot metric 
-    and evaluation columns from a Parquet dataset. It filters for rows where 
-    the evaluation result is False and returns a formatted string of the 
+    This function dynamically constructs a DuckDB SQL query to unpivot metric
+    and evaluation columns from a Parquet dataset. It filters for rows where
+    the evaluation result is False and returns a formatted string of the
     failures.
 
     Parameters
@@ -378,7 +378,7 @@ def get_failed_evaluations(
         The S3 URI or path to the Parquet files (e.g., 's3://bucket/data/').
         Must support Hive-style partitioning.
     report_generation_time : str or datetime
-        The specific timestamp used to filter the `monitor_end_datetime` 
+        The specific timestamp used to filter the `monitor_end_datetime`
         column in the dataset.
     report_spec : ReportSpec
         A dataclass instance containing report-type-specific configuration,
@@ -410,7 +410,7 @@ def get_failed_evaluations(
     eval_check_str = f"""
         WITH filtered_data AS (
             SELECT *
-            FROM read_parquet('{s3_parquet_file_path}', hive_partitioning=true)
+            FROM read_parquet('{s3_parquet_file_path}', hive_partitioning=true, union_by_name=true)
             WHERE
                 obs_year_part = YEAR({report_spec.start_time_column})
                 AND obs_month_part = MONTH({report_spec.start_time_column})
@@ -441,7 +441,7 @@ def get_failed_evaluations(
             + tab_str
         )
 
-    return eval_str 
+    return eval_str
 
 def get_monitored_files(
     duckdb_connection,
@@ -465,7 +465,7 @@ def get_monitored_files(
         The S3 URI or path to the Parquet files (e.g., 's3://bucket/data/').
         Must support Hive-style partitioning.
     report_generation_time : str or datetime
-        The specific timestamp used to filter the `monitor_end_datetime` 
+        The specific timestamp used to filter the `monitor_end_datetime`
         column in the dataset.
     report_spec : ReportSpec
         A dataclass instance containing report-type-specific configuration,
@@ -481,15 +481,15 @@ def get_monitored_files(
         Includes an "ALERT" tag for any observation with fewer than 18 detectors.
     """
     report_info_str = f"""
-        SELECT 
-            CAST({report_spec.start_time_column} AS DATE) AS obs_day, 
+        SELECT
+            CAST({report_spec.start_time_column} AS DATE) AS obs_day,
             reprocess_number,
             program_number,
             {report_spec.summary_id_column},
             list(detector) as detector_list,
             COUNT(detector) as detector_count,
-        FROM read_parquet('{s3_parquet_file_path}', hive_partitioning=true)
-        WHERE 
+        FROM read_parquet('{s3_parquet_file_path}', hive_partitioning=true, union_by_name=true)
+        WHERE
             obs_year_part = YEAR({report_spec.start_time_column})
             AND obs_month_part = MONTH({report_spec.start_time_column})
             AND monitor_end_datetime = $1
