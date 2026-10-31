@@ -56,14 +56,17 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
                         }]
                     }
             else:
-                message_dicts = [json.loads(rec['body']['Message']) for rec in event['Records']]
-                function_type_checks = [MessageKeys.FUNCTION_TYPE in message_dict.keys() for message_dict in message_dicts]
+                bodies = [json.loads(rec['body']) if isinstance(rec['body'], str) else rec['body']
+                          for rec in event['Records']]
 
-                # if no function_type is specified, the 'ingest_function' should be used
-                if sum(function_type_checks) == 0:
-                    
-                    notification_datetimes = [float(rec['attributes']['SentTimestamp'])/1000.0 for rec in event['Records']]
-                    return ingest_batch(message_dicts, notification_datetimes)
+                # Match single-record routing: only DMD notifications can be batched.
+                if not any(MessageKeys.FUNCTION_TYPE in body for body in bodies):
+                    message_dicts = [json.loads(body['Message']) for body in bodies]
+                    notification_datetimes = [
+                        datetime.fromtimestamp(float(rec['attributes']['SentTimestamp']) / 1000.0, timezone.utc)
+                        for rec in event['Records']
+                    ]
+                    return ingest_batch(message_dicts, notification_datetimes, aws_account_id)
                 else:
                     return {'statusCode': StatusCodes.BAD_LAMBDA_BATCH_SIZE,
                     'body': [{'error_message':'A lambda function not running ingest_function received more than 1 request.'}]}
@@ -79,6 +82,7 @@ def handler(event: Dict, context: Dict) -> Dict[str, int| List[Dict[Any, Any]]]:
                     'body': [{'error_message':'Incorrect event format provided to app.py'}]}
     except Exception as e:
         logger.error(f"Failed somewhere in app.py with error: {e}", exc_info=True)
+        logger.info("Event that caused the failure:\n%s", json.dumps(event, indent=2, default=str))
         return {
             'statusCode': StatusCodes.FAILURE,
             'body': [{'error_message':f"{e}"}],

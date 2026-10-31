@@ -1,11 +1,15 @@
 import json
+from datetime import datetime, timezone
 from unittest.mock import patch
+
+import pytest
 
 #import pytest
 # from rdmt_spire.app import handler
 # from rdmt_spire.constants.codes import StatusCodes
 from ..app import handler
 from ..constants.codes import StatusCodes
+from ..constants.lambdas import FunctionTypes, MessageKeys
 
 #TODO: add mock s3 handler / mock SQS message
 
@@ -61,3 +65,34 @@ def test_lambda_app():
         response=handler(meta_event,context)
     assert response['statusCode'] == StatusCodes.FAILURE # TODO: Currently generates a database connection error. Need to mock the database to fix.
     assert 'error_message' in response['body'][0]
+
+
+@pytest.mark.parametrize('string_bodies', [True, False])
+def test_handler_ingest_batch_decodes_messages_and_timestamps(string_bodies):
+    messages = [{'filename': 'first.fits'}, {'filename': 'second.fits'}]
+    records = []
+    for index, message in enumerate(messages):
+        body = {'Message': json.dumps(message)}
+        records.append({
+            'body': json.dumps(body) if string_bodies else body,
+            'attributes': {'SentTimestamp': str(1000 + index * 500)},
+        })
+    expected = {'statusCode': StatusCodes.SUCCESS, 'body': []}
+    with patch('rdmt_spire.app.ingest_batch', return_value=expected) as ingest:
+        assert handler({'Records': records}, LambdaContextMock()) == expected
+    ingest.assert_called_once_with(
+        messages,
+        [datetime.fromtimestamp(1, timezone.utc), datetime.fromtimestamp(1.5, timezone.utc)],
+        '123456789012',
+    )
+
+
+@pytest.mark.parametrize('mixed', [True, False])
+def test_handler_rejects_batched_monitor_messages(mixed):
+    monitor = {MessageKeys.FUNCTION_TYPE: FunctionTypes.MONITOR}
+    bodies = [{'Message': json.dumps({'filename': 'first.fits'})} if mixed else monitor, monitor]
+    event = {'Records': [{'body': json.dumps(body)} for body in bodies]}
+    with patch('rdmt_spire.app.ingest_batch') as ingest:
+        response = handler(event, LambdaContextMock())
+    assert response['statusCode'] == StatusCodes.BAD_LAMBDA_BATCH_SIZE
+    ingest.assert_not_called()

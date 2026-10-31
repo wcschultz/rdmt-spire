@@ -384,41 +384,38 @@ def write_new_metadata_table_rows(engine, rows_to_add):
             session.add(rc)
         session.commit()
 
-#### TODO: NOT YET IMPLEMENTED. Error handling when processing batched messages needs to be better understood.
-def ingest_batch(message_dicts, notification_datetimes):
+def ingest_batch(message_dicts, notification_datetimes, aws_account_id):
     """
-    A still to be implemented version of ingest_single that handles a larger batch size of messages.
+    Ingest DMD messages sequentially using the single-message ingestion workflow.
 
+    Each message receives its corresponding UTC notification datetime and uses
+    the supplied AWS account ID to resolve its monitor queue. Sequential writes
+    allow later messages for the same file to see earlier reprocessing numbers.
+
+    All messages are attempted, including when an earlier message fails. The
+    response body contains their results in input order; the status code is the
+    first failure code, or SUCCESS when every message succeeds. This response
+    does not implement the SQS partial-batch failure protocol.
+
+    Raises
+    ------
+    ValueError
+        If the message and notification datetime lists have different lengths.
     """
-    # Unpack the message attributes into a table class
-    meta_tables = [create_table_class_from_message(md) for md in message_dicts]
-    for i, mt in enumerate(meta_tables):
-        mt.dmd_notify_datetime = notification_datetimes[i]
+    if len(message_dicts) != len(notification_datetimes):
+        raise ValueError('Each message must have a corresponding notification datetime.')
 
-    logger.info(f'dmd notify times: {[mt.dmd_notify_datetime for mt in meta_tables]}')
+    status_code = StatusCodes.SUCCESS
+    body = []
+    for message_dict, notification_datetime in zip(message_dicts, notification_datetimes):
+        try:
+            response = ingest_single(message_dict, notification_datetime, aws_account_id)
+        except Exception as e:
+            logger.error(f'Failed to ingest batch message: {e}', exc_info=True)
+            response = {'statusCode': StatusCodes.FAILURE,
+                        'body': [{'error_message': str(e)}]}
+        if status_code == StatusCodes.SUCCESS and response['statusCode'] != StatusCodes.SUCCESS:
+            status_code = response['statusCode']
+        body.extend(response['body'])
 
-    # Connecting to the database
-    # collect relevant parameters from AWS Parameter Store
-    params = fetch_parameters_from_path(AWS_PARAMETER_PATH, expected_parameters=AWS_MONITOR_QUEUES + AWS_DBS)
-
-    # Connecting to the database
-    logger.info('connecting to the database')
-    sql_engine = connect_to_db(database_name=params[DB_NAME], secret_name=params[DB_SECRET_NAME])
-
-    # Check for instances of the filenames in the metadata tables
-    logger.info('Retrieving previous instances of the files')
-    previous_reprocess_num_list = get_previous_file_reprocess_numbers(sql_engine, meta_tables)
-
-    logger.info(f'reprocess_nums_list: {previous_reprocess_num_list}')
-    #logger.info('Determining reprocessing number')
-    #for message_dict, meta_table, previous_reprocess_nums in zip(message_dicts, meta_tables,#previous_reprocess_num_list):
-    #    reprocess_num, rep_num_err = determine_reprocessing_num(message_dict, previous_reprocess_nums)
-    #    if rep_num_err is None:
-    #        meta_table.reprocess_number = reprocess_num
-    #    else:
-    #        logger.error(rep_num_err)
-    #        return {'statusCode': StatusCodes.REPROCESS_NUM_DETERMINATION_FAIL,
-    #            'body': [{'error_message': rep_num_err}]}
-
-    return {'statusCode': StatusCodes.NOT_YET_IMPLEMENTED,
-            'body': [{'error_message':'ingest_batch() is not yet implemented.'}]}
+    return {'statusCode': status_code, 'body': body}
